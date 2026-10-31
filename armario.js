@@ -101,7 +101,7 @@ const bonusDoItem = d => { const b = { vida: 0, ataque: 0, defesa: 0, critico: 0
 function itemIcone(d, extra = '') { return `<span class="ico r${d.rar}${d.vox ? ' vox' : ''}" ${extra}><img src="${d.img}" alt="${esc(d.nome)}" loading="lazy"></span>`; }
 
 // herói girando 360° (quadros de um vídeo giratório): gira sozinho e com o dedo
-const GIROS = ['kael'], GIRO_Q = 24;
+const GIROS = ['kael', 'simo', 'gio', 'guto', 'clara', 'luzia', 'tonho'], GIRO_Q = 24;
 function vitrineHeroi(p, cheio) {
   const k = p.heroi, nome = esc(p.nick || DEVOTOS[k].nome), temGiro = GIROS.includes(k);
   const gala = cheio && !(temGiro && UI.armGiro);
