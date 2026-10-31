@@ -113,10 +113,11 @@ function telaArmario(p) {
   const cheio = SLOTS.every(([s]) => equipado(p, s));
   return `<div class="vitrine">
       <div class="col">${SLOTS.slice(0, 4).map(slotBtn).join('')}</div>
-      <div class="heroi-hd"><img src="assets/hd/${p.heroi}.jpg" alt="${esc(DEVOTOS[p.heroi].nome)}"><b>${esc(p.nick || DEVOTOS[p.heroi].nome)}</b></div>
-      <div class="col">${SLOTS.slice(4).map(slotBtn).join('')}${cheio ? '<span class="slot ok"><span class="vazio">✨</span><small>Completo</small></span>' : ''}</div>
+      <div class="heroi-hd${cheio ? ' gala' : ''}"><img src="assets/hd/${p.heroi}${cheio ? '-gala' : ''}.jpg" alt="${esc(DEVOTOS[p.heroi].nome)}"><b>${esc(p.nick || DEVOTOS[p.heroi].nome)}</b></div>
+      <div class="col">${SLOTS.slice(4).map(slotBtn).join('')}${cheio ? '<button class="slot ok" data-a="fotoOficial"><span class="vazio">✨</span><small>Foto oficial</small></button>' : ''}</div>
     </div>
     <p class="small" style="text-align:center;margin:-4px 0 0;color:var(--gold)">${bonusTexto(b) || 'Toque num encaixe para equipar um item.'}</p>
+    ${cheio ? '' : `<p class="small muted" style="text-align:center;margin:0">Preencha os 7 encaixes para liberar a ✨ Foto Oficial do seu herói (${SLOTS.filter(([s]) => equipado(p, s)).length}/7).</p>`}
     <div class="card"><span class="sec">Baús</span><div class="baus">${Object.entries(BAUS).map(([t, x]) => `<div class="bau">
       <img src="assets/itens/bau-${t}.webp" alt="${x.nome}"><b>${x.nome}</b><small>${p.baus[t]} guardado${p.baus[t] === 1 ? '' : 's'}</small>
       <button class="btn sm gold" data-a="bauAbrir" data-k="${t}" ${p.baus[t] ? '' : 'disabled'}>Abrir</button>
@@ -176,8 +177,18 @@ Object.assign(ACOES, {
   filtroArm(k) { UI.filtroArm = k; render(); },
   equipar(id) {
     const p = pAtual(), inst = p.armario.find(i => i.id === id); if (!inst) return;
-    const d = itemDe(inst.k); p.equip[d.slot] = id; SFX.moeda(); salvar();
-    UI.overlay = null; toast(`${d.nome} equipado!`); render();
+    const d = itemDe(inst.k); p.equip[d.slot] = id; SFX.moeda();
+    // os 7 encaixes cheios pela primeira vez: mostra a Foto Oficial
+    const cheio = SLOTS.every(([s]) => equipado(p, s));
+    if (cheio && !p.galaVista) { p.galaVista = true; evento(p.id, 'Liberou a Foto Oficial do herói'); salvar(); SFX.fanfarra(); UI.aba = 'armario'; return ACOES.fotoOficial(); }
+    salvar(); UI.overlay = null; toast(`${d.nome} equipado!`); render();
+  },
+  fotoOficial() {
+    const p = pAtual();
+    UI.overlay = `<div class="over bau-over" style="--rc:#f2c94c"><div class="foto-oficial"><span class="cert-rar">✨ Foto Oficial</span>
+      <img src="assets/hd/${p.heroi}-gala.jpg" alt="Foto oficial"><h3>${esc(p.nick || DEVOTOS[p.heroi].nome)} · Forma de Gala</h3>
+      <p class="small muted">Os 7 encaixes estão cheios. A foto mostra o herói com o conjunto lendário.</p>
+      <button class="btn gold" data-a="fechar">Voltar ao Armário</button></div></div>`; render();
   },
   desequipar(s) { const p = pAtual(); delete p.equip[s]; salvar(); UI.overlay = null; render(); },
   trocarRepetido(k) {
