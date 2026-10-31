@@ -21,12 +21,11 @@ const fmtData = s => { const [y, m, d] = s.split('-'); return `${d}/${m}`; };
 
 // ---------- estado ----------
 function novoJogador(id, nome, cor) {
-  const devotos = {};
-  DEVOTOS_INICIAIS.forEach(k => devotos[k] = { lvl: 1, dup: 0 });
+  // começa sem ninguém: o herói sai do quiz e da roleta do Despertar (desperta.js)
   return {
     id, nome, cor, xp: 0, chama: 4, lumens: 20, talentos: 0, congelados: 0,
     frag: { fe: 0, esp: 0, car: 0, tem: 0, pru: 0, for: 0, jus: 0 },
-    devotos, equipe: [...DEVOTOS_INICIAIS], pity: 0, pilulas: 2,
+    heroi: null, devotos: {}, equipe: [], pity: 0, pilulas: 2,
     reino: { no: 0, lendas: [] }, comunhaoEm: 0, gracaDia: '', streak: 0, streakDia: '',
     xpSemana: 0, semana: semanaDe(), cofre: [], anjo: null, emitidos: {}, aplicados: [], upd: 0,
   };
@@ -375,8 +374,8 @@ function telaEquipe(p) {
   const meus = Object.keys(p.devotos);
   return `<div class="card"><div class="row between"><div><span class="sec">Invocação</span><p class="small muted">${CUSTO_INVOCACAO} ✦ por invocação · 5★ garantido em até ${PITY_5} (faltam ${PITY_5 - p.pity})</p></div>
     <button class="btn gold" data-a="invocar" ${p.lumens < CUSTO_INVOCACAO ? 'disabled' : ''}>Invocar</button></div></div>
-    <p class="small muted">Toque num devoto para ver os poderes, upar ou colocar no time (máximo 4).</p>
-    <div class="devs">${meus.map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${p.equipe.includes(k) ? '<span class="eq">TIME</span>' : ''}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
+    <p class="small muted">Toque num devoto para ver os poderes e upar. Seu herói caminha com você; os outros são Aliados.</p>
+    <div class="devs">${meus.sort((a, b) => (b === p.heroi) - (a === p.heroi)).map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${k === p.heroi ? '<span class="eq">HERÓI</span>' : '<span class="eq" style="background:#2b2540;color:var(--muted)">ALIADO</span>'}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
     <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>`;
 }
 function telaLoja(p) {
@@ -494,26 +493,29 @@ function invocar(p) {
   if (cinco) p.pity = 0;
   let extra;
   if (p.devotos[k]) { p.devotos[k].dup++; p.frag[d.v] += 5; extra = `Repetido: +5 Fragmentos de ${VIRTUDES[d.v].nome}`; }
-  else { p.devotos[k] = { lvl: 1, dup: 0 }; extra = 'Novo devoto no seu time!'; }
+  else { p.devotos[k] = { lvl: 1, dup: 0 }; extra = 'Novo Aliado!'; }
   evento(p.id, `Invocou ${d.nome} ${estrelas(d.est)}`);
   salvar(); tocar('12-invocacao'); cinco ? SFX.fanfarra() : SFX.moeda();
   UI.overlay = `<div class="over" data-a="fechar"><div class="box revela">${img(devImg(k), d.nome)}<div class="est" style="font-size:1.4rem">${estrelas(d.est)}</div><h2>${d.nome}</h2><p class="muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p><p><i>“${esc(d.fala)}”</i></p><p class="small" style="color:var(--gold)">${extra}</p><button class="btn gold">Fechar</button></div></div>`;
 }
 function detalheDevoto(p, k) {
-  const d = DEVOTOS[k], st = p.devotos[k], custo = st.lvl * 3, noTime = p.equipe.includes(k);
+  const d = DEVOTOS[k], st = p.devotos[k], custo = st.lvl * 3;
   UI.overlay = `<div class="over"><div class="box">
     <div class="row"><img src="${devImg(k)}" alt="${d.nome}" style="width:96px;border-radius:12px;background:#ddd"><div><h2>${d.nome}</h2><div class="est">${estrelas(d.est)}</div>${virtPill(d.v)}<p class="small muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p></div></div>
     <p><i>“${esc(d.fala)}”</i></p>
     <p class="small"><b>Dom:</b> ${d.dom[0]} · <b>Supremo:</b> ${d.sup[0]}</p>
     <p class="small muted">Nível ${st.lvl}/20 · upar custa ${custo} Fragmentos de ${VIRTUDES[d.v].nome} (você tem ${p.frag[d.v]})</p>
     <button class="btn gold" data-a="upar" data-k="${k}" ${p.frag[d.v] < custo || st.lvl >= 20 ? 'disabled' : ''}>Upar para nível ${st.lvl + 1}</button>
-    <button class="btn" data-a="timeTroca" data-k="${k}">${noTime ? 'Tirar do time' : 'Colocar no time'}</button>
+    <p class="small" style="color:var(--gold);margin:0">${k === p.heroi ? '★ Seu herói' : '✦ Aliado: entra nas batalhas como carta especial (em breve)'}</p>
     <button class="btn sm" data-a="fechar">Fechar</button></div></div>`;
 }
 
 // ---------- jogo (motor em game.js) ----------
 function stats(k, lvl) {
   const d = DEVOTOS[k], hp = d.est === 5 ? 130 : 110, atk = d.est === 5 ? 24 : 19, f = 1 + 0.1 * (lvl - 1);
+  // o herói luta sozinho contra grupos que antes enfrentavam um time de 4: mesma base para todos e mais fôlego
+  const p = UI.perfil && S.players[UI.perfil];
+  if (p && p.heroi === k) return { hp: r(320 * f), atk: r(40 * f) };
   return { hp: r(hp * f), atk: r(atk * f) };
 }
 let JOGO = null;
@@ -524,6 +526,7 @@ function hudJogo() {
 }
 function abrirJogo() {
   const p = pAtual();
+  if (!p.heroi) return abrirDesperta();
   let box = document.getElementById('jogo');
   if (!box) {
     box = document.createElement('div'); box.id = 'jogo';
@@ -586,7 +589,7 @@ window.VJ = {
     p.chama--; salvar(); hudJogo();
     if (n.t === 'historia') {
       mostrarHistoria(n, () => {
-        if (n.ganha && !p.devotos[n.ganha]) { p.devotos[n.ganha] = { lvl: 1, dup: 0 }; toast(`${DEVOTOS[n.ganha].nome} entrou no seu time!`); SFX.fanfarra(); }
+        if (n.ganha && !p.devotos[n.ganha]) { p.devotos[n.ganha] = { lvl: 1, dup: 0 }; toast(`${DEVOTOS[n.ganha].nome} virou seu Aliado!`); SFX.fanfarra(); }
         p.reino.no++; salvar(); hudJogo(); JOGO && JOGO.scene.start('explorar');
       });
       return { tipo: 'historia' };
@@ -618,6 +621,7 @@ const ACOES = {
       return render();
     }
     UI.perfil = k; UI.aba = 'inicio'; UI.sub = ''; rodadaDiaria(); tocar('01-abertura'); render();
+    if (!S.players[k].heroi) abrirDesperta();
   },
   pin() {
     const v = (document.getElementById('pin').value || '').trim().toLowerCase();
@@ -658,10 +662,9 @@ const ACOES = {
   dev(k) { detalheDevoto(pAtual(), k); render(); },
   upar(k) { const p = pAtual(), d = DEVOTOS[k], st = p.devotos[k], c = st.lvl * 3; if (p.frag[d.v] < c) return; p.frag[d.v] -= c; st.lvl++; SFX.fanfarra(); salvar(); detalheDevoto(p, k); render(); },
   timeTroca(k) {
+    // a jornada é com um herói só; os outros devotos são Aliados
     const p = pAtual();
-    if (p.equipe.includes(k)) { if (p.equipe.length <= 1) return toast('O time precisa de pelo menos 1 devoto'); p.equipe = p.equipe.filter(x => x !== k); }
-    else { if (p.equipe.length >= 4) return toast('Time cheio: tire alguém primeiro'); p.equipe.push(k); }
-    salvar(); detalheDevoto(p, k); render();
+    toast(k === p.heroi ? `${DEVOTOS[k].nome} é o seu herói` : `${DEVOTOS[k].nome} é Aliado: entra nas batalhas como carta especial (em breve)`);
   },
   resgatar(id) {
     const p = pAtual(), x = S.premios.find(y => y.id === id); if (!x || p.talentos < x.custo) return;

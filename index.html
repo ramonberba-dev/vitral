@@ -171,6 +171,20 @@ p{margin:0}
 .video video{width:100%;height:100%;object-fit:contain}
 .video button{position:absolute;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px)}
 .over{z-index:70}
+/* Despertar: quiz e roleta do herói */
+.desp{background:radial-gradient(circle at 50% 30%,#3c286e,#08060e 70%)}
+.desp .box{max-width:460px;background:rgba(22,18,34,.96)}
+.desp-q{margin:0;font-family:var(--display);text-wrap:balance}
+.desp-ops{display:flex;flex-direction:column;gap:10px}
+.desp-ops .btn{text-align:left;padding:14px 16px;font-size:1rem}
+.roleta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.rcarta{position:relative;border-radius:14px;overflow:hidden;border:3px solid var(--cor);aspect-ratio:3/5;background:#000;transition:transform .2s,box-shadow .2s,opacity .6s}
+.rcarta img{width:100%;height:100%;object-fit:cover;object-position:top;filter:blur(9px) brightness(.45) saturate(.2);transform:scale(1.15);transition:filter 1.4s,transform 1.4s}
+.rcarta span{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:.62rem;font-weight:900;letter-spacing:.04em;text-transform:uppercase;color:var(--cor);text-shadow:0 1px 6px #000}
+.rcarta.vez{transform:translateY(-8px) scale(1.04);box-shadow:0 0 26px var(--cor)}
+.rcarta.some{opacity:.15;transform:scale(.92)}
+.rcarta.ganhou{transform:scale(1.08);box-shadow:0 0 44px var(--cor),0 0 90px rgba(233,196,106,.5)}
+.rcarta.ganhou img{filter:none;transform:scale(1)}
 .sdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;vertical-align:middle}
 .sdot.ok{background:var(--good)}.sdot.indo{background:var(--gold)}.sdot.erro{background:var(--bad)}.sdot.off{background:#555}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -186,5 +200,6 @@ p{margin:0}
 <script src="explorar.js"></script>
 <script src="sync.js"></script>
 <script src="app.js"></script>
+<script src="desperta.js"></script>
 </body>
 </html>
