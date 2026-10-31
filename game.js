@@ -84,7 +84,7 @@ class Batalha extends Phaser.Scene {
       const spr = this.add.image(base.x, base.y + 200, 'd-' + k).setOrigin(0.5, 1).setScale(0.4).setDepth(9);
       this.tweens.add({ targets: spr, y: base.y, duration: 500, delay: 200 + i * 90, ease: 'Back.out' });
       this.tweens.add({ targets: spr, scaleY: 0.408, yoyo: true, repeat: -1, duration: 1000 + i * 70, ease: 'Sine.inOut', delay: 800 });
-      const a = { k, d, spr, sombra, base, hp: s.hp, max: s.hp, atk: s.atk, carga: 0, cd: 0, escudo: 0, buff: 0 };
+      const a = { k, d, spr, sombra, base, hp: s.hp, max: s.hp, atk: s.atk, def: s.def || 0, crit: s.crit || 0, dom: s.dom || 0, carga: 0, cd: 0, escudo: 0, buff: 0 };
       a.barra = this.add.graphics().setDepth(12); return a;
     });
     // inimigos
@@ -206,10 +206,13 @@ class Batalha extends Phaser.Scene {
     await tw(this, { targets: a.spr, x: f.base.x + (a.base.x < f.base.x ? -40 : 40), y: f.base.y + 110, scale: 0.46, duration: 230, ease: 'Quad.in' });
     let res = 'nada';
     if (cmd) res = await this.tempo(f.base.x, f.spr.y - f.spr.displayHeight / 2);
-    const bonus = { perfeito: 1.6, bom: 1.2, errou: 0.9, nada: 1 }[res];
+    // crítico vem da barra do herói (Foco, Ímpeto…); não soma com o PERFEITO do toque
+    const crit = res !== 'perfeito' && Math.random() * 100 < (a.crit || 0);
+    const bonus = { perfeito: 1.6, bom: 1.2, errou: 0.9, nada: 1 }[res] * (crit ? 1.5 : 1);
     const dano = Math.round(a.atk * (a.buff ? 1.3 : 1) * mult * bonus * (0.9 + Math.random() * 0.2));
-    this.impacto(f, dano, COR_V[a.d.v], res === 'perfeito');
+    this.impacto(f, dano, COR_V[a.d.v], res === 'perfeito' || crit);
     if (res === 'perfeito') this.popNum(f.base.x, f.spr.y - f.spr.displayHeight - 40, 'PERFEITO!', '#f3d27e', 24);
+    else if (crit) this.popNum(f.base.x, f.spr.y - f.spr.displayHeight - 40, 'CRÍTICO!', '#ff9a4d', 24);
     else if (res === 'bom') this.popNum(f.base.x, f.spr.y - f.spr.displayHeight - 40, 'BOM!', '#ffffff', 20);
     await tw(this, { targets: a.spr, x: sx, y: sy, scale: 0.4, duration: 260, ease: 'Quad.out' });
     return dano;
@@ -263,10 +266,11 @@ class Batalha extends Phaser.Scene {
   async efeito(a, ef, forte) {
     const vivos = this.inimigos.filter(f => f.hp > 0), al = this.aliados.filter(x => x.hp > 0), alvo = this.inimigos[this.alvoI];
     if (ef === 'sorte') ef = sorteia(['dano', 'cura', 'buff', 'escudo']);
-    if (ef === 'dano') return this.golpe(a, alvo, forte ? 3 : 1.8);
+    const pd = 1 + (a.dom || 0) / 100; // barra de Dom (Código, Oração, Luz…) fortalece Dom e Supremo
+    if (ef === 'dano') return this.golpe(a, alvo, (forte ? 3 : 1.8) * pd);
     if (ef === 'atordoa') {
-      if (forte) { for (const f of vivos) { this.impacto(f, Math.round(a.atk * 1.2), COR_V[a.d.v]); f.stun = 1; this.estrelas(f); } return; }
-      await this.golpe(a, alvo, 1); if (alvo.hp > 0) { alvo.stun = 1; this.estrelas(alvo); } return;
+      if (forte) { for (const f of vivos) { this.impacto(f, Math.round(a.atk * 1.2 * pd), COR_V[a.d.v]); f.stun = 1; this.estrelas(f); } return; }
+      await this.golpe(a, alvo, pd); if (alvo.hp > 0) { alvo.stun = 1; this.estrelas(alvo); } return;
     }
     if (ef === 'area') {
       await tw(this, { targets: a.spr, y: a.base.y - 90, duration: 220, ease: 'Quad.out' });
@@ -274,20 +278,20 @@ class Batalha extends Phaser.Scene {
       this.tweens.add({ targets: onda, radius: 260, alpha: 0, duration: 450, onComplete: () => onda.destroy() });
       const res = await this.tempo(LARG / 2, 330);
       const b = { perfeito: 1.5, bom: 1.15, errou: 0.9, nada: 1 }[res];
-      vivos.forEach(f => this.impacto(f, Math.round(a.atk * (forte ? 1.6 : 0.9) * b * (0.9 + Math.random() * 0.2)), COR_V[a.d.v], res === 'perfeito'));
+      vivos.forEach(f => this.impacto(f, Math.round(a.atk * (forte ? 1.6 : 0.9) * b * pd * (0.9 + Math.random() * 0.2)), COR_V[a.d.v], res === 'perfeito'));
       await tw(this, { targets: a.spr, y: a.base.y, duration: 240, ease: 'Bounce.out' }); return;
     }
     if (ef === 'cura' || ef === 'revive') {
       this.aliados.forEach(x => {
         if (x.hp <= 0) { if (ef !== 'revive') return; x.hp = Math.round(x.max * 0.5); x.spr.setAlpha(1); }
-        const c = Math.round(x.max * (forte ? 0.4 : 0.22)); x.hp = Math.min(x.max, x.hp + c);
+        const c = Math.round(x.max * (forte ? 0.4 : 0.22) * pd); x.hp = Math.min(x.max, x.hp + c);
         this.faiscas.setParticleTint(0x5fd39a); this.faiscas.explode(14, x.base.x, x.base.y - 70);
         this.popNum(x.base.x, x.base.y - 150, '+' + c, '#5fd39a', 22);
       });
       window.VJ.sfx('sinos'); return;
     }
     if (ef === 'escudo') {
-      al.forEach(x => { x.escudo += Math.round(x.max * (forte ? 0.35 : 0.2)); const b = this.add.circle(x.base.x, x.base.y - 70, 10, 0x4aa3ff, 0.25).setStrokeStyle(3, 0x9cd0ff).setDepth(15); this.tweens.add({ targets: b, radius: 62, alpha: 0, duration: 700, onComplete: () => b.destroy() }); });
+      al.forEach(x => { x.escudo += Math.round(x.max * (forte ? 0.35 : 0.2) * pd); const b = this.add.circle(x.base.x, x.base.y - 70, 10, 0x4aa3ff, 0.25).setStrokeStyle(3, 0x9cd0ff).setDepth(15); this.tweens.add({ targets: b, radius: 62, alpha: 0, duration: 700, onComplete: () => b.destroy() }); });
       window.VJ.sfx('sinos'); return;
     }
     if (ef === 'buff') {
@@ -348,7 +352,8 @@ class Batalha extends Phaser.Scene {
       const ida = tw(this, { targets: f.spr, y: f.base.y + 120, x: alvo.base.x, scaleX: f.spr.scaleX * 1.12, scaleY: f.spr.scaleY * 1.12, duration: 600, ease: 'Quad.in' });
       const res = await this.tempo(alvo.base.x, alvo.base.y - 80, true);
       await ida; ex.destroy();
-      let d = Math.round(f.atk * (0.85 + Math.random() * 0.3));
+      // barra de defesa do herói (Firewall, Rocha, Calma…) corta parte do golpe
+      let d = Math.round(f.atk * (0.85 + Math.random() * 0.3) * (1 - (alvo.def || 0) / 100));
       if (res === 'perfeito' || res === 'bom') { d = Math.round(d * (res === 'perfeito' ? 0.3 : 0.6)); this.popNum(alvo.base.x, alvo.base.y - 230, 'DEFESA!', '#9cd0ff', 24); window.VJ.sfx('sinos'); }
       if (alvo.escudo) { const ab = Math.min(alvo.escudo, d); alvo.escudo -= ab; d -= ab; }
       alvo.hp = Math.max(0, alvo.hp - d);

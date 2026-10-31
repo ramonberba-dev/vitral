@@ -30,6 +30,33 @@ const DEVOTOS = {
 const FEM = new Set(['jana', 'tessa', 'duda', 'clara', 'avila', 'luzia']);
 const DEVOTOS_INICIAIS =['clara', 'simo', 'tonho', 'luzia'];
 
+// Evolução do herói: level por XP (missões e batalhas) e estágios que mudam a armadura
+const NIVEL_MAX = 50;
+const xpProNivel = n => 50 + 25 * n;          // XP para ir do nível n para o n+1
+const ESTAGIOS = [
+  { nv: 1, nome: 'Peregrino' }, { nv: 10, nome: 'Escudeiro' }, { nv: 20, nome: 'Cavaleiro' },
+  { nv: 35, nome: 'Guardião' }, { nv: 50, nome: 'Forma Lendária' },
+];
+// Cada ponto numa barra vale isto na batalha
+const BARRA_EFEITO = {
+  vida:    { por: 15,  txt: '+15 de vida' },
+  ataque:  { por: 3,   txt: '+3 de ataque' },
+  defesa:  { por: 2.5, txt: '-2,5% de dano recebido', max: 50 },
+  critico: { por: 3,   txt: '+3% de chance de crítico', max: 60 },
+  dom:     { por: 6,   txt: '+6% de força no Dom e no Supremo' },
+};
+// Barras próprias de cada herói inicial (a Vida é comum a todos): [chave, nome, efeito]
+const BARRAS = {
+  simo:  [['rocha', 'Rocha', 'defesa'], ['rede', 'Rede', 'dom'], ['impeto', 'Ímpeto', 'ataque']],
+  gio:   [['oracao', 'Oração', 'dom'], ['discern', 'Discernimento', 'critico'], ['paz', 'Paz', 'defesa']],
+  guto:  [['coracao', 'Coração', 'dom'], ['melodia', 'Melodia', 'ataque'], ['ritmo', 'Ritmo', 'critico']],
+  clara: [['luz', 'Luz', 'dom'], ['calma', 'Calma', 'defesa'], ['firmeza', 'Firmeza', 'ataque']],
+  kael:  [['foco', 'Foco', 'critico'], ['codigo', 'Código', 'dom'], ['firewall', 'Firewall', 'defesa']],
+  luzia: [['forca', 'Força', 'ataque'], ['coragem', 'Coragem', 'defesa'], ['visao', 'Visão', 'critico']],
+  tonho: [['palavra', 'Palavra', 'ataque'], ['achado', 'Achado', 'critico'], ['pao', 'Pão', 'dom']],
+};
+const barrasDe = k => [['vida', 'Vida', 'vida'], ...(BARRAS[k] || [['forca', 'Força', 'ataque'], ['defesa', 'Defesa', 'defesa'], ['foco', 'Foco', 'critico']])];
+
 // Duas virtudes seguidas no mesmo turno disparam um combo
 const COMBOS = [
   { a: 'fe',  b: 'for', nome: 'Cruzada',         ef: 'atordoa' },

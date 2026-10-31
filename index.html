@@ -171,6 +171,13 @@ p{margin:0}
 .video video{width:100%;height:100%;object-fit:contain}
 .video button{position:absolute;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px)}
 .over{z-index:70}
+/* arrastar para confirmar e escolha de barra */
+.desliza{position:relative;height:56px;border-radius:999px;background:#2a1820;border:1px solid var(--bad);display:grid;place-items:center;overflow:hidden;touch-action:none;user-select:none}
+.desliza::before{content:"";position:absolute;inset:0;background:var(--bad);opacity:calc(var(--p,0)*.55)}
+.desliza span{position:relative;font-weight:800;font-size:.9rem;color:#ffc9cf;padding-left:40px}
+.puxa{position:absolute;left:4px;top:4px;width:48px;height:46px;border-radius:999px;border:0;background:var(--bad);color:#fff;font-size:1.4rem;font-weight:900;cursor:grab;touch-action:none}
+.barra-esc{display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:inherit;font:inherit}
+.barra-esc:active{border-color:var(--gold)}
 /* Despertar: quiz e roleta do herói */
 .desp{background:radial-gradient(circle at 50% 30%,#3c286e,#08060e 70%)}
 .desp .box{max-width:460px;background:rgba(22,18,34,.96)}

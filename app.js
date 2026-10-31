@@ -165,7 +165,7 @@ function creditar(p, m) {
   const rankAntes = rankIdx(p.xp);
   const xp = r(t.xp * e * mult * sec), fr = Math.max(1, r(t.frag * e * mult * sec));
   if (p.semana !== semanaDe()) { p.xpSemana = 0; p.semana = semanaDe(); }
-  p.xp += xp; p.xpSemana += xp; p.frag[m.v] += fr;
+  p.xp += xp; p.xpSemana += xp; p.frag[m.v] += fr; ganharXpHeroi(p, xp);
   if (m.secreta) p.frag.fe += 1;
   darTalentos(p, r(t.tal * e) + (m.secreta ? 1 : 0));
   p.chama = Math.min(CHAMA_MAX, p.chama + t.chama + (m.secreta ? 1 : 0));
@@ -256,6 +256,23 @@ const img = (src, alt = '') => `<img src="${src}" alt="${esc(alt)}" loading="laz
 const devImg = k => `assets/devotos/${k}.jpg`;
 const estrelas = n => '★'.repeat(n);
 const virtPill = v => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome}</span>`;
+// Confirmação de arrastar: só dispara a ação quando o botão chega ao fim do trilho (evita toque sem querer)
+const deslizar = (acao, texto) => `<div class="desliza" data-acao="${acao}"><span>${texto}</span><button class="puxa" type="button" aria-label="${texto}">»</button></div>`;
+document.addEventListener('pointerdown', e => {
+  const puxa = e.target.closest('.puxa'); if (!puxa) return;
+  e.preventDefault();
+  const trilho = puxa.parentElement, max = trilho.clientWidth - puxa.offsetWidth - 8, x0 = e.clientX;
+  let x = 0;
+  const mover = ev => { x = Math.max(0, Math.min(max, ev.clientX - x0)); puxa.style.transform = `translateX(${x}px)`; trilho.style.setProperty('--p', x / max); };
+  const soltar = ev => {
+    if (ev.type === 'pointerup') mover(ev); // conta também onde o dedo soltou
+    document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar);
+    if (x >= max * 0.92) { const fn = ACOES[trilho.dataset.acao]; if (fn) fn(); return; }
+    puxa.style.transition = 'transform .25s'; puxa.style.transform = ''; trilho.style.setProperty('--p', 0);
+    setTimeout(() => { puxa.style.transition = ''; }, 260);
+  };
+  document.addEventListener('pointermove', mover); document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
+});
 function barra(pct, cor) { return `<div class="bar"><i style="width:${Math.max(0, Math.min(100, pct))}%;${cor ? `background:${cor}` : ''}"></i></div>`; }
 function anjoBox(p) {
   const [expr, txt] = p.anjo || pick(ANJO.oi);
@@ -376,7 +393,8 @@ function telaEquipe(p) {
     <button class="btn gold" data-a="invocar" ${p.lumens < CUSTO_INVOCACAO ? 'disabled' : ''}>Invocar</button></div></div>
     <div class="row between"><p class="small muted" style="margin:0">Toque num devoto para ver os poderes e upar. Seu herói caminha com você; os outros são Aliados.</p><button class="btn sm" data-a="nickTrocar">✎ Nick</button></div>
     <div class="devs">${meus.sort((a, b) => (b === p.heroi) - (a === p.heroi)).map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${k === p.heroi ? '<span class="eq">HERÓI</span>' : '<span class="eq" style="background:#2b2540;color:var(--muted)">ALIADO</span>'}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
-    <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>`;
+    <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>
+    <button class="btn sm bad" data-a="recomecar">↺ Recomeçar a jornada</button>`;
 }
 function telaLoja(p) {
   const meus = S.resgates.filter(x => x.pid === p.id && x.status === 'pedido');
@@ -499,8 +517,47 @@ function invocar(p) {
   salvar(); tocar('12-invocacao'); cinco ? SFX.fanfarra() : SFX.moeda();
   UI.overlay = `<div class="over" data-a="fechar"><div class="box revela">${img(devImg(k), d.nome)}<div class="est" style="font-size:1.4rem">${estrelas(d.est)}</div><h2>${d.nome}</h2><p class="muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p><p><i>“${esc(d.fala)}”</i></p><p class="small" style="color:var(--gold)">${extra}</p><button class="btn gold">Fechar</button></div></div>`;
 }
+// ---------- evolução do herói ----------
+const estagio = nv => [...ESTAGIOS].reverse().find(e => nv >= e.nv);
+const nivelHeroi = p => (p.heroi && p.devotos[p.heroi]?.lvl) || 1;
+function ganharXpHeroi(p, n) {
+  if (!p.heroi || !n) return;
+  const st = p.devotos[p.heroi]; p.hxp = (p.hxp || 0) + n;
+  while (st.lvl < NIVEL_MAX && p.hxp >= xpProNivel(st.lvl)) {
+    p.hxp -= xpProNivel(st.lvl); st.lvl++; p.pontos = (p.pontos || 0) + 3;
+    const antes = estagio(st.lvl - 1), agora = estagio(st.lvl);
+    evento(p.id, agora !== antes ? `${DEVOTOS[p.heroi].nome} virou ${agora.nome} (Nv ${st.lvl})!` : `${DEVOTOS[p.heroi].nome} subiu para o Nv ${st.lvl}`);
+    p.subiu = st.lvl; // a tela de pontos avisa na próxima vez
+  }
+}
+function telaBarras(p, titulo) {
+  const k = p.heroi, nv = nivelHeroi(p), b = p.barras || {};
+  return `<div class="over"><div class="box">
+    <div class="row"><img src="${devImg(k)}" alt="${DEVOTOS[k].nome}" style="width:72px;border-radius:12px;background:#ddd"><div><span class="sec">${titulo}</span><h3>${DEVOTOS[k].nome} · Nv ${nv}</h3><p class="small muted" style="margin:0">${p.pontos} ponto${p.pontos === 1 ? '' : 's'} para distribuir</p></div></div>
+    ${barrasDe(k).map(([c, nome, ef]) => `<button class="barra-esc" data-a="barra" data-k="${c}"><div class="row between"><b>${nome}</b><span class="small muted">${b[c] || 0} · ${BARRA_EFEITO[ef].txt}</span></div>${barra(Math.min(100, (b[c] || 0) * 4))}</button>`).join('')}
+    <button class="btn sm" data-a="fechar">Guardar pontos para depois</button></div></div>`;
+}
+function abrirBarras(p) {
+  const subiu = p.subiu; p.subiu = 0;
+  UI.overlay = telaBarras(p, subiu ? `Subiu para o Nv ${subiu}!` : 'Vitória! Escolha o que fica mais forte');
+  if (subiu) { SFX.fanfarra(); falaAnjo(p, 'rank'); }
+  render();
+}
 function detalheDevoto(p, k) {
   const d = DEVOTOS[k], st = p.devotos[k], custo = st.lvl * 3;
+  if (k === p.heroi) {
+    const nv = st.lvl, e = estagio(nv), prox = ESTAGIOS.find(x => x.nv > nv), s = stats(k, nv), b = p.barras || {};
+    UI.overlay = `<div class="over"><div class="box">
+      <div class="row"><img src="${devImg(k)}" alt="${d.nome}" style="width:96px;border-radius:12px;background:#ddd"><div><span class="sec">★ Seu herói · ${e.nome}</span><h2>${d.nome}</h2>${virtPill(d.v)}<p class="small muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p></div></div>
+      <div><div class="row between small"><b>Nível ${nv}/${NIVEL_MAX}</b><span class="muted">${nv >= NIVEL_MAX ? 'máximo' : `${p.hxp || 0}/${xpProNivel(nv)} XP`}</span></div>${barra(nv >= NIVEL_MAX ? 100 : (p.hxp || 0) / xpProNivel(nv) * 100)}
+      <p class="small muted" style="margin:4px 0 0">${prox ? `Armadura nova no Nv ${prox.nv}: ${prox.nome}` : 'Forma Lendária alcançada'}</p></div>
+      <p class="small" style="margin:0">❤️ ${s.hp} · ⚔️ ${s.atk} · 🛡️ ${s.def}% · ✴️ ${s.crit}% · ✨ +${s.dom}%</p>
+      ${barrasDe(k).map(([c, nome, ef]) => `<div><div class="row between small"><b>${nome}</b><span class="muted">${b[c] || 0} · ${BARRA_EFEITO[ef].txt}</span></div>${barra(Math.min(100, (b[c] || 0) * 4))}</div>`).join('')}
+      ${p.pontos ? `<button class="btn gold" data-a="barrasAbrir">Distribuir ${p.pontos} ponto${p.pontos === 1 ? '' : 's'}</button>` : '<p class="small muted" style="margin:0">Cada vitória dá 1 ponto e cada nível dá mais 3. O nível sobe com as missões aprovadas e as batalhas.</p>'}
+      <p class="small"><b>Dom:</b> ${d.dom[0]} · <b>Supremo:</b> ${d.sup[0]}</p>
+      <button class="btn sm" data-a="fechar">Fechar</button></div></div>`;
+    return;
+  }
   UI.overlay = `<div class="over"><div class="box">
     <div class="row"><img src="${devImg(k)}" alt="${d.nome}" style="width:96px;border-radius:12px;background:#ddd"><div><h2>${d.nome}</h2><div class="est">${estrelas(d.est)}</div>${virtPill(d.v)}<p class="small muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p></div></div>
     <p><i>“${esc(d.fala)}”</i></p>
@@ -514,13 +571,18 @@ function detalheDevoto(p, k) {
 // ---------- jogo (motor em game.js) ----------
 function stats(k, lvl) {
   const d = DEVOTOS[k], hp = d.est === 5 ? 130 : 110, atk = d.est === 5 ? 24 : 19, f = 1 + 0.1 * (lvl - 1);
-  // o herói luta sozinho contra grupos que antes enfrentavam um time de 4: mesma base para todos e mais fôlego
+  // o herói luta sozinho contra grupos que antes enfrentavam um time de 4: mesma base para todos, mais fôlego e as barras
   const p = UI.perfil && S.players[UI.perfil];
-  if (p && p.heroi === k) return { hp: r(320 * f), atk: r(40 * f) };
-  return { hp: r(hp * f), atk: r(atk * f) };
+  if (p && p.heroi === k) {
+    const g = 1 + 0.06 * (lvl - 1), soma = { vida: 0, ataque: 0, defesa: 0, critico: 0, dom: 0 };
+    barrasDe(k).forEach(([c, , ef]) => { soma[ef] += ((p.barras || {})[c] || 0) * BARRA_EFEITO[ef].por; });
+    return { hp: r(320 * g + soma.vida), atk: r(40 * g + soma.ataque), def: Math.min(BARRA_EFEITO.defesa.max, soma.defesa),
+      crit: Math.min(BARRA_EFEITO.critico.max, 5 + soma.critico), dom: r(soma.dom) };
+  }
+  return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '8';
+const VERSAO_ASSETS = '9';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -574,7 +636,10 @@ window.VJ = {
   video: (nome, depois) => tocarVideo(nome, depois),
   sair: () => fecharJogo(),
   // a batalha precisa parar: scene.start pelo jogo não fecha a cena que estava rodando
-  voltarMapa: () => { hudJogo(); if (!JOGO) return; JOGO.scene.stop('batalha'); JOGO.scene.start('explorar'); },
+  voltarMapa: () => {
+    hudJogo(); if (!JOGO) return; JOGO.scene.stop('batalha'); JOGO.scene.start('explorar');
+    const p = pAtual(); if (p.pontos > 0 && p.ganhouAgora) { p.ganhouAgora = false; abrirBarras(p); }
+  },
   perder: () => { const p = pAtual(); falaAnjo(p, 'derrota'); salvar(); hudJogo(); },
   // chamado quando o herói chega no próximo ponto do mapa
   interagir(i) {
@@ -608,6 +673,10 @@ window.VJ = {
       texto = `As Colinas Brancas estão livres!\nLenda desbloqueada: ${no.lenda}\n+23 Lumens`;
       evento(p.id, `Libertou as Colinas Brancas: Lenda ${no.lenda}`);
     } else evento(p.id, `Venceu: ${no.titulo}`);
+    // evolução: XP para o herói e 1 ponto de barra por vitória (a escolha aparece ao voltar para o mapa)
+    const xp = no.t === 'chefe' ? 80 : no.t === 'boss' ? 45 : 18;
+    ganharXpHeroi(p, xp); p.pontos = (p.pontos || 0) + 1; p.ganhouAgora = true;
+    texto += `\n+${xp} XP · +1 ponto de barra`;
     p.reino.no++; salvar(); hudJogo();
     return { texto, video };
   },
@@ -623,6 +692,7 @@ const ACOES = {
     }
     UI.perfil = k; UI.aba = 'inicio'; UI.sub = ''; rodadaDiaria(); tocar('01-abertura'); render();
     if (!S.players[k].heroi) abrirDesperta();
+    else if (S.players[k].subiu && S.players[k].pontos > 0) abrirBarras(S.players[k]); // subiu de nível com missão aprovada
   },
   pin() {
     const v = (document.getElementById('pin').value || '').trim().toLowerCase();
@@ -718,8 +788,29 @@ const ACOES = {
   },
   familiaZerar() { S.config.xpFamiliaBase = Object.values(S.players).reduce((s, x) => s + x.xp, 0); toque('config', S.config); salvar(); toast('Barra da Família recomeçou'); render(); },
   resetar() {
-    UI.overlay = `<div class="over"><div class="box"><h3>Apagar os dados deste aparelho?</h3><p class="muted">Este aparelho é desconectado e volta ao zero. O que já foi sincronizado continua salvo na planilha e volta quando você conectar de novo.</p><button class="btn bad" data-a="resetarSim">Sim, apagar tudo</button><button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+    UI.overlay = `<div class="over"><div class="box"><h3>Apagar os dados deste aparelho?</h3><p class="muted">Este aparelho é desconectado e volta ao zero: missões, fotos e personagens daqui somem. O que já foi sincronizado continua salvo na planilha e volta quando você conectar de novo.</p>${deslizar('resetarSim', 'Arraste para apagar tudo')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
   },
+  // filho: recomeçar a jornada do zero (novo Despertar), mantendo missões, XP de rank, Talentos e Cofre
+  recomecar() {
+    UI.overlay = `<div class="over"><div class="box"><h3>Recomeçar a jornada?</h3>
+      <p class="muted small">Você volta ao Despertar e sorteia um herói novo. Zera: herói, nível, barras, Aliados, mapa e Lumens.</p>
+      <p class="small" style="color:var(--good);margin:0">Continua: missões, XP de rank, Talentos, Cofre e pedidos da Loja.</p>
+      ${deslizar('recomecarSim', 'Arraste para recomeçar')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+  },
+  recomecarSim() {
+    const p = pAtual();
+    Object.assign(p, { heroi: null, devotos: {}, equipe: [], barras: {}, pontos: 0, hxp: 0, subiu: 0, ganhouAgora: false,
+      reino: { no: 0, lendas: [] }, lumens: 20, pity: 0, prologo: false });
+    evento(p.id, 'Recomeçou a jornada'); salvar(); UI.overlay = null; render(); abrirDesperta();
+  },
+  barra(c) {
+    const p = pAtual(); if (!(p.pontos > 0)) return;
+    p.barras = p.barras || {}; p.barras[c] = (p.barras[c] || 0) + 1; p.pontos--; SFX.moeda(); salvar();
+    if (p.pontos > 0) UI.overlay = telaBarras(p, 'Mais pontos para distribuir');
+    else { UI.overlay = null; toast(`${barrasDe(p.heroi).find(x => x[0] === c)[1]} subiu!`); }
+    render();
+  },
+  barrasAbrir() { abrirBarras(pAtual()); },
   resetarSim() { S = estadoInicial(); localSalvar(); UI.overlay = null; UI.perfil = null; render(); },
   conectarTela() {
     UI.overlay = `<div class="over"><div class="box"><h3>🔗 Conectar este aparelho</h3>
