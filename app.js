@@ -293,7 +293,15 @@ function stMissao(m) {
 }
 
 // ---------- telas ----------
+// Se a tela de fundo der erro, o que está por cima (quiz, avisos) continua funcionando e o erro fica registrado
 function render() {
+  try { renderTela(); }
+  catch (err) {
+    registrarErro(err && err.message || err, 'tela ' + (UI.perfil || 'entrada') + '/' + UI.aba);
+    $app.innerHTML = `<main class="screen"><div class="card"><b>Esta tela deu um erro.</b><p class="small muted">Os pais podem ver o motivo em Mais.</p><button class="btn" data-a="sair">Voltar ao início</button></div></main>` + (UI.overlay || '');
+  }
+}
+function renderTela() {
   if (!UI.perfil) return renderEntrada();
   const pais = UI.perfil === 'pais';
   const p = pais ? null : S.players[UI.perfil];
@@ -672,7 +680,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '12';
+const VERSAO_ASSETS = '13';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -956,7 +964,10 @@ const ACOES = {
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   const fn = ACOES[el.dataset.a]; if (!fn) return;
-  e.preventDefault(); fn(el.dataset.k, el.dataset.n);
+  e.preventDefault();
+  // um botão que dá erro não pode congelar a tela: registra qual foi e segue
+  try { const r = fn(el.dataset.k, el.dataset.n); if (r && r.catch) r.catch(err => registrarErro(err && err.message || err, 'botão ' + el.dataset.a)); }
+  catch (err) { registrarErro(err && err.message || err, 'botão ' + el.dataset.a); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('pin')) ACOES.pin(); });
 
