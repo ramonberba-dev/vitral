@@ -214,10 +214,20 @@ function escolherFoto() {
   });
 }
 
+// ---------- preferências deste aparelho (Configurações) ----------
+const PREF = Object.assign({ efeitos: true, volume: 45, texto: 'normal', calmo: false }, (() => { try { return JSON.parse(localStorage.getItem('vitral_prefs')) || {}; } catch { return {}; } })());
+function aplicarPrefs() {
+  document.documentElement.classList.toggle('tg', PREF.texto === 'grande');
+  document.documentElement.classList.toggle('calmo', !!PREF.calmo);
+  if (typeof $mus !== 'undefined') $mus.volume = PREF.volume / 100;
+}
+function salvarPrefs() { try { localStorage.setItem('vitral_prefs', JSON.stringify(PREF)); } catch {} aplicarPrefs(); }
+aplicarPrefs();
+
 // ---------- som ----------
 let ctx;
 function bip(notas, tipo = 'square', dur = 0.09, vol = 0.07) {
-  if (!UI.som) return;
+  if (!UI.som || !PREF.efeitos) return;
   try {
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
     notas.forEach((f, i) => {
@@ -239,7 +249,7 @@ function tocar(faixa) {
   if (!UI.som) { $mus.pause(); return; }
   const src = `assets/musica/${faixa}.mp3`;
   if (!$mus.src.endsWith(src)) { $mus.src = src; }
-  $mus.volume = 0.45; $mus.play().catch(() => {});
+  $mus.volume = PREF.volume / 100; $mus.play().catch(() => {});
 }
 
 // ---------- feedback ----------
@@ -271,12 +281,19 @@ document.addEventListener('pointerdown', e => {
   const puxa = e.target.closest('.puxa'); if (!puxa) return;
   e.preventDefault();
   const trilho = puxa.parentElement, max = trilho.clientWidth - puxa.offsetWidth - 8, x0 = e.clientX;
-  let x = 0;
-  const mover = ev => { x = Math.max(0, Math.min(max, ev.clientX - x0)); puxa.style.transform = `translateX(${x}px)`; trilho.style.setProperty('--p', x / max); };
+  let x = 0, feito = false;
+  const pos = v => { x = v; puxa.style.transform = `translateX(${x}px)`; trilho.style.setProperty('--p', x / max); };
+  const limpar = () => { clearInterval(seg); document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar); };
+  const confirmar = () => { if (feito) return; feito = true; limpar(); const fn = ACOES[trilho.dataset.acao]; if (fn) fn(); };
+  // segurar o dedo parado também confirma: a bolinha anda sozinha em 2 s
+  let parado = true;
+  const seg = setInterval(() => { if (!parado) return; pos(Math.min(max, x + max / 40)); if (x >= max) confirmar(); }, 50);
+  const mover = ev => { const d = ev.clientX - x0; if (Math.abs(d) > 6) parado = false; if (!parado) pos(Math.max(0, Math.min(max, d))); };
   const soltar = ev => {
-    if (ev.type === 'pointerup') mover(ev); // conta também onde o dedo soltou
-    document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar);
-    if (x >= max * 0.92) { const fn = ACOES[trilho.dataset.acao]; if (fn) fn(); return; }
+    if (feito) return;
+    if (ev.type === 'pointerup' && !parado) mover(ev); // conta também onde o dedo soltou
+    limpar();
+    if (x >= max * 0.92) return confirmar();
     puxa.style.transition = 'transform .25s'; puxa.style.transform = ''; trilho.style.setProperty('--p', 0);
     setTimeout(() => { puxa.style.transition = ''; }, 260);
   };
@@ -312,7 +329,7 @@ function renderTela() {
   const topo = pais
     ? `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:var(--gold)">✦</div><div><b>Painel dos pais</b><small>tocar para sair</small></div></button>${syncDot()}${somBtn()}</div>`
     : `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div><div><b>${esc(p.nick || p.nome)}</b><small>${RANKS[rankIdx(p.xp)].nome}</small></div></button>
-       <div class="res"><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span class="ic-tal">◈${p.talentos}</span></div>${syncDot()}${somBtn()}</div>`;
+       <div class="res"><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span class="ic-tal">◈${p.talentos}</span></div>${syncDot()}<button class="btn sm" data-a="config" aria-label="Configurações">⚙️</button></div>`;
   const corpo = pais ? telaPais() : telaFilho(p);
   const nav = `<nav class="nav">${abas.map(([k, i, n]) => `<button data-a="aba" data-k="${k}" class="${UI.aba === k ? 'on' : ''}"><span class="i">${i}</span>${n}${pais && k === 'avaliar' && pend ? `<span class="badge">${pend}</span>` : ''}</button>`).join('')}</nav>`;
   $app.innerHTML = topo + `<main class="screen">${corpo}</main>` + nav + (UI.overlay || '');
@@ -487,6 +504,34 @@ function paisRotina() {
       <p class="small muted">Larvas ativas: ${larvasAtivas(p.id).length} · Vigor ${vigor(p)}%${fortalecido(p) ? ' · Fortalecido' : ''}</p></div>`;
   }).join('');
 }
+function telaConfig(p) {
+  const liga = (acao, on, nome, desc) => `<button class="cfg" data-a="${acao}"><div><b>${nome}</b><small>${desc}</small></div><span class="chave${on ? ' on' : ''}"><i></i></span></button>`;
+  const vol = Math.round(PREF.volume / 15);
+  return `<div class="over"><div class="box cfg-box"><h3>⚙️ Configurações</h3>
+    <span class="sec">Som</span>
+    ${liga('som', UI.som, 'Música', 'Trilha do jogo e dos vídeos')}
+    ${liga('cfgEfeitos', PREF.efeitos, 'Efeitos sonoros', 'Moedas, golpes, fanfarra')}
+    <div class="cfg"><div><b>Volume da música</b><small>${'▮'.repeat(vol)}${'▯'.repeat(6 - vol)}</small></div><div class="row"><button class="btn sm" data-a="cfgVol" data-k="-15">−</button><button class="btn sm" data-a="cfgVol" data-k="15">+</button></div></div>
+    <span class="sec">Tela</span>
+    ${liga('cfgTexto', PREF.texto === 'grande', 'Letra grande', 'Textos maiores no app')}
+    ${liga('cfgCalmo', PREF.calmo, 'Menos animação', 'Tira brilhos e movimentos das telas')}
+    <span class="sec">História</span>
+    <button class="cfg" data-a="cfgPrologo"><div><b>🎬 Rever o prólogo</b><small>A guerra no Céu, a queda e o Éden</small></div>›</button>
+    <button class="cfg" data-a="cfgAbertura"><div><b>🎬 Rever a abertura do Reino I</b><small>A chegada às Colinas Brancas</small></div>›</button>
+    <button class="cfg" data-a="cfgInicio"><div><b>📖 Voltar ao início da história</b><small>Reino I do começo, com o mesmo herói</small></div>›</button>
+    <span class="sec">Jogador</span>
+    <button class="cfg" data-a="nickTrocar"><div><b>✎ Trocar o nick</b><small>Agora: ${esc(p.nick || '-')}</small></div>›</button>
+    ${instalado() ? '' : '<button class="cfg" data-a="instalar"><div><b>📲 Instalar o app</b><small>Ícone na tela do celular</small></div>›</button>'}
+    <button class="cfg perigo" data-a="recomecar"><div><b>↺ Recomeçar a jornada</b><small>Novo Despertar e novo herói</small></div>›</button>
+    <button class="cfg" data-a="sair"><div><b>🚪 Sair do perfil</b><small>Volta para a escolha de quem vai jogar</small></div>›</button>
+    <p class="small muted" style="text-align:center">VITRAL · versão ${VERSAO_ASSETS}</p>
+    <button class="btn gold" data-a="fechar">Fechar</button></div></div>`;
+}
+function recomecarJornada(p) {
+  Object.assign(p, { heroi: null, devotos: {}, equipe: [], barras: {}, pontos: 0, hxp: 0, subiu: 0, ganhouAgora: false, cartas: {}, deck: [],
+    reino: { no: 0, lendas: [] }, lumens: 20, pity: 0, prologo: false, libertar: null });
+  evento(p.id, 'Recomeçou a jornada');
+}
 function paisJogo() {
   return Object.values(S.players).map(p => {
     const ri = rankIdx(p.xp);
@@ -499,7 +544,8 @@ function paisJogo() {
       <tr><th>Talentos</th><td>${p.talentos}${p.congelados ? ` (+${p.congelados} ❄️)` : ''}</td><th>Vigor</th><td>${vigor(p)}%</td></tr></table>
       <p class="small muted">Time: ${p.equipe.map(k => DEVOTOS[k].nome).join(', ')}</p>
       <span class="sec">Últimos acontecimentos</span>${ev.map(e => `<p class="small">• ${esc(e.txt)} <span class="muted">${fmtData(hoje(new Date(e.em)))}</span></p>`).join('') || '<p class="muted small">Nada ainda.</p>'}
-      <button class="btn sm" data-a="bonus" data-k="${p.id}">🎁 Dar 3 Chamas de bônus (destravar)</button></div>`;
+      <button class="btn sm" data-a="bonus" data-k="${p.id}">🎁 Dar 3 Chamas de bônus (destravar)</button>
+      <button class="btn sm bad" data-a="recomecarPais" data-k="${p.id}">↺ Recomeçar a jornada de ${esc(p.nome)}</button></div>`;
   }).join('');
 }
 function formMissao() {
@@ -706,7 +752,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '15';
+const VERSAO_ASSETS = '17';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -856,7 +902,7 @@ const ACOES = {
     UI.overlay = `<div class="over"><div class="box"><h3>📲 Instalar o VITRAL</h3>${passosInstalar()}<button class="btn" data-a="copiarLink">Copiar o link</button><button class="btn gold" data-a="fechar">Entendi</button></div></div>`; render();
   },
   copiarLink() { const u = location.href.split('#')[0]; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Link copiado!'), () => toast(u)); },
-  som() { UI.som = !UI.som; if (!UI.som) $mus.pause(); else tocar(UI.perfil && UI.perfil !== 'pais' && UI.aba === 'mapa' ? REINO1.musica : '01-abertura'); render(); },
+  som() { UI.som = !UI.som; if (!UI.som) $mus.pause(); else tocar(UI.perfil && UI.perfil !== 'pais' && UI.aba === 'mapa' ? REINO1.musica : '01-abertura'); if (UI.overlay && UI.overlay.includes('cfg-box')) UI.overlay = telaConfig(pAtual()); render(); },
   aba(k) { UI.aba = k; UI.sub = ''; UI.overlay = null; if (UI.perfil !== 'pais') tocar(k === 'mapa' ? REINO1.musica : k === 'equipe' ? '12-invocacao' : '01-abertura'); render(); window.scrollTo(0, 0); },
   sub(k) { UI.sub = k; render(); },
   fechar() { UI.overlay = null; render(); },
@@ -944,20 +990,41 @@ const ACOES = {
   },
   familiaZerar() { S.config.xpFamiliaBase = Object.values(S.players).reduce((s, x) => s + x.xp, 0); toque('config', S.config); salvar(); toast('Barra da Família recomeçou'); render(); },
   resetar() {
-    UI.overlay = `<div class="over"><div class="box"><h3>Apagar os dados deste aparelho?</h3><p class="muted">Este aparelho é desconectado e volta ao zero: missões, fotos e personagens daqui somem. O que já foi sincronizado continua salvo na planilha e volta quando você conectar de novo.</p>${deslizar('resetarSim', 'Arraste para apagar tudo')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+    UI.overlay = `<div class="over"><div class="box"><h3>Apagar os dados deste aparelho?</h3><p class="muted">Este aparelho é desconectado e volta ao zero: missões, fotos e personagens daqui somem. O que já foi sincronizado continua salvo na planilha e volta quando você conectar de novo.</p>${deslizar('resetarSim', 'Arraste ou segure »')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
   },
   // filho: recomeçar a jornada do zero (novo Despertar), mantendo missões, XP de rank, Talentos e Cofre
   recomecar() {
     UI.overlay = `<div class="over"><div class="box"><h3>Recomeçar a jornada?</h3>
       <p class="muted small">Você volta ao Despertar e sorteia um herói novo. Zera: herói, nível, barras, Aliados, mapa e Lumens.</p>
       <p class="small" style="color:var(--good);margin:0">Continua: missões, XP de rank, Talentos, Cofre e pedidos da Loja.</p>
-      ${deslizar('recomecarSim', 'Arraste para recomeçar')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+      ${deslizar('recomecarSim', 'Arraste ou segure »')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
   },
-  recomecarSim() {
-    const p = pAtual();
-    Object.assign(p, { heroi: null, devotos: {}, equipe: [], barras: {}, pontos: 0, hxp: 0, subiu: 0, ganhouAgora: false, cartas: {}, deck: [],
-      reino: { no: 0, lendas: [] }, lumens: 20, pity: 0, prologo: false });
-    evento(p.id, 'Recomeçou a jornada'); salvar(); UI.overlay = null; render(); abrirDesperta();
+  config() { UI.overlay = telaConfig(pAtual()); render(); },
+  cfgEfeitos() { PREF.efeitos = !PREF.efeitos; salvarPrefs(); SFX.moeda(); ACOES.config(); },
+  cfgVol(d) { PREF.volume = Math.max(0, Math.min(90, PREF.volume + Number(d))); salvarPrefs(); ACOES.config(); },
+  cfgTexto() { PREF.texto = PREF.texto === 'grande' ? 'normal' : 'grande'; salvarPrefs(); ACOES.config(); },
+  cfgCalmo() { PREF.calmo = !PREF.calmo; salvarPrefs(); ACOES.config(); },
+  cfgPrologo() { UI.overlay = null; render(); tocarVideo('prologo', () => tocar('01-abertura')); },
+  cfgAbertura() { UI.overlay = null; render(); tocarVideo('abertura-r1', () => tocar('01-abertura')); },
+  cfgInicio() {
+    UI.overlay = `<div class="over"><div class="box"><h3>Voltar ao início da história?</h3><p class="muted">O Reino I recomeça do primeiro ponto, com o prólogo e a abertura. Seu herói, nível, cartas, Diário e ✦ continuam.</p>
+      ${deslizar('cfgInicioSim', 'Arraste ou segure »')}<button class="btn" data-a="config">Cancelar</button></div></div>`; render();
+  },
+  cfgInicioSim() {
+    const p = pAtual(); p.reino = { no: 0, lendas: [] }; p.prologo = false; p.libertar = null;
+    evento(p.id, 'Voltou ao início da história'); salvar(); UI.overlay = null; toast('A história recomeçou. Vá ao Mapa e entre no reino!'); ACOES.aba('mapa');
+  },
+  recomecarSim() { const p = pAtual(); recomecarJornada(p); salvar(); UI.overlay = null; render(); abrirDesperta(); },
+  // pelos pais: zera o jogo do filho e manda para os outros aparelhos (o filho faz o Despertar ao entrar)
+  recomecarPais(pid) {
+    UI.alvo = pid;
+    UI.overlay = `<div class="over"><div class="box"><h3>Recomeçar a jornada de ${esc(S.players[pid].nome)}?</h3><p class="muted">Herói, cartas, mapa e ✦ voltam ao zero e ele faz o Despertar de novo (perguntas, roleta e vídeo). Missões, Talentos, XP e nick continuam.</p>
+      ${deslizar('recomecarPaisSim', 'Arraste ou segure »')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+  },
+  recomecarPaisSim() {
+    const p = S.players[UI.alvo]; if (!p) return;
+    recomecarJornada(p); p.upd = Date.now(); marcar('players', p.id); localSalvar(); agendarSync();
+    UI.overlay = null; toast(`${p.nome} vai começar de novo ao entrar`); render();
   },
   barra(c) {
     const p = pAtual(); if (!(p.pontos > 0)) return;
