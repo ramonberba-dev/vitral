@@ -51,7 +51,7 @@ let S;
 try { S = JSON.parse(localStorage.getItem(CHAVE)) || estadoInicial(); } catch { S = estadoInicial(); }
 // dados de versões antigas do protótipo
 S.sync = S.sync || { url: '', chave: '', desde: 0, pend: {} };
-if (!S.sync.url && window.CONFIG && window.CONFIG.api_url) S.sync.url = window.CONFIG.api_url;
+if (window.CONFIG && window.CONFIG.api_url) S.sync.url = window.CONFIG.api_url;
 S.registros = S.registros || []; S.config.id = 'config'; S.config.nomes = S.config.nomes || {};
 Object.values(S.players).forEach(p => { p.emitidos = p.emitidos || {}; p.aplicados = p.aplicados || []; });
 function localSalvar() {
@@ -752,7 +752,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '17';
+const VERSAO_ASSETS = '18';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -1048,18 +1048,30 @@ const ACOES = {
   conectarTela() {
     UI.overlay = `<div class="over"><div class="box"><h3>🔗 Conectar este aparelho</h3>
       <p class="small muted">Digite o código da família. Use o mesmo código no celular de cada filho e no de vocês.</p>
-      <input id="cx-chave" placeholder="Código da família" value="${esc(S.sync.chave || '')}" autocomplete="off" style="text-transform:uppercase">
+      <input id="cx-chave" placeholder="Ex.: C9361F8C" value="${esc(S.sync.chave || '')}" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="20" style="text-transform:uppercase;font-size:1.3rem;letter-spacing:.12em;text-align:center">
+      <p class="small" id="cx-status" style="margin:0;min-height:1.2em"></p>
       ${window.CONFIG && window.CONFIG.api_url ? '' : `<input id="cx-url" placeholder="Endereço do servidor (https://script.google.com/...)" value="${esc(S.sync.url || '')}">`}
       <button class="btn gold" data-a="conectarSim">Conectar</button><button class="btn sm" data-a="fechar">Cancelar</button></div></div>`;
     render();
   },
   async conectarSim() {
-    const chave = document.getElementById('cx-chave').value.trim();
-    const url = (document.getElementById('cx-url') || {}).value?.trim() || S.sync.url || (window.CONFIG && window.CONFIG.api_url);
-    if (!chave || !url) return toast('Preencha o código');
-    toast('Conectando…');
+    const st = document.getElementById('cx-status'), bt = document.querySelector('[data-a=conectarSim]');
+    const diz = (t, cor) => { if (st) { st.textContent = t; st.style.color = cor || 'var(--muted)'; } };
+    // o teclado do celular às vezes põe espaço, ponto ou traço: fica só com letras e números
+    const chave = document.getElementById('cx-chave').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const url = (window.CONFIG && window.CONFIG.api_url) || (document.getElementById('cx-url') || {}).value?.trim() || S.sync.url;
+    if (chave.length < 6) return diz('Digite o código da família (8 letras e números).', 'var(--warn)');
+    if (!navigator.onLine) return diz('Sem internet agora. Ligue o Wi-Fi ou os dados e tente de novo.', 'var(--warn)');
+    if (bt) { bt.disabled = true; bt.textContent = 'Conectando…'; }
+    diz('Buscando os dados da família. Pode levar até 30 segundos…');
     try { await conectar(url, chave); UI.overlay = null; toast('Aparelho conectado!'); SFX.sinos(); render(); }
-    catch (e) { S.sync.chave = ''; localSalvar(); toast('Não conectou: ' + (e.message || e)); }
+    catch (e) {
+      S.sync.chave = ''; localSalvar();
+      const m = String(e.message || e);
+      diz(/chave|c[oó]digo|autoriz/i.test(m) ? 'Código não encontrado. Confira as letras e os números.' : /fetch|network|load|json/i.test(m) ? 'Não alcançou o servidor. Confira a internet e tente de novo.' : 'Não conectou: ' + m, 'var(--bad)');
+      if (bt) { bt.disabled = false; bt.textContent = 'Tentar de novo'; }
+      registrarErro(m, 'conectar');
+    }
   },
   sincronizarJa() { sincronizar().then(() => { toast(UI.sync === 'ok' ? 'Tudo sincronizado' : 'Sem conexão agora'); render(); }); },
 };
