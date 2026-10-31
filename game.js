@@ -190,14 +190,15 @@ class Batalha extends Phaser.Scene {
       let feito = false;
       const fim = res => {
         if (feito) return; feito = true; this.input.off('pointerdown', toque);
-        [dentro, fora, dica].forEach(o => o.destroy()); ok(res);
+        // para a animação do anel antes de apagá-lo: senão ela mexe num círculo que não existe e trava a batalha
+        anel.remove(); [dentro, fora, dica].forEach(o => o.destroy()); ok(res);
       };
       const toque = () => {
         const erro = Math.abs(this.time.now - t0 - dur);
         fim(erro < 110 ? 'perfeito' : erro < 230 ? 'bom' : 'errou');
       };
       this.time.delayedCall(60, () => this.input.on('pointerdown', toque));
-      this.tweens.add({ targets: fora, radius: 24, duration: dur, ease: 'Linear' });
+      const anel = this.tweens.add({ targets: fora, radius: 24, duration: dur, ease: 'Linear' });
       this.time.delayedCall(dur + 240, () => fim('nada'));
     });
   }
