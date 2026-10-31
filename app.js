@@ -517,7 +517,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f) };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '7';
+const VERSAO_ASSETS = '8';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -532,7 +532,9 @@ function abrirJogo() {
   }
   box.hidden = false; hudJogo();
   const iniciar = () => { if (!JOGO) JOGO = window.criarJogo('jogo-canvas'); else JOGO.scene.start('explorar'); };
-  if (!p.reino.abertura) { p.reino.abertura = true; salvar(); tocarVideo('abertura-r1', iniciar); } else iniciar();
+  const reino = () => { if (!p.reino.abertura) { p.reino.abertura = true; salvar(); tocarVideo('abertura-r1', iniciar); } else iniciar(); };
+  // na primeira vez, o Prólogo (a queda e a origem da Bruma) vem antes de tudo
+  if (!p.prologo) { p.prologo = true; salvar(); tocarVideo('prologo', reino); } else reino();
 }
 function fecharJogo() {
   const box = document.getElementById('jogo'); if (box) box.hidden = true;
