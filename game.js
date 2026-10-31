@@ -32,6 +32,7 @@ function precarregar(cena) {
   cena.load.image('chao', `assets/jogo/mapa-r1-chao.png?${v}`);
   Object.keys(window.VJ.DEVOTOS).forEach(k => cena.load.spritesheet('anda-' + k, `assets/jogo/anda-${k}.png?${v}`, { frameWidth: 96, frameHeight: 128 }));
   cena.load.image('batalha-r1', `assets/jogo/batalha-r1.jpg?${v}`);
+  cena.load.image('batalha-r1-chefe', `assets/jogo/batalha-r1-chefe.jpg?${v}`);
 }
 function texto(cena, x, y, t, tam = 18, cor = '#ffffff', extra = {}) {
   return cena.add.text(x, y, t, { fontFamily: 'Nunito Sans, sans-serif', fontStyle: '900', fontSize: tam + 'px', color: cor, stroke: '#140f1f', strokeThickness: Math.max(3, tam / 5), align: 'center', resolution: Z, ...extra }).setOrigin(0.5);
@@ -59,11 +60,19 @@ class Batalha extends Phaser.Scene {
     const VJ = window.VJ, p = VJ.p(), no = this.no;
     this.ocupado = true;
     this.cameras.main.setZoom(Z).centerOn(LARG / 2, ALT / 2).fadeIn(300, 15, 13, 23);
-    const fundo = this.add.image(LARG / 2, ALT / 2, 'batalha-r1'); fundo.setScale(Math.max(LARG / fundo.width, ALT / fundo.height) * 1.08);
-    this.tweens.add({ targets: fundo, scale: fundo.scale * 1.03, yoyo: true, repeat: -1, duration: 6000, ease: 'Sine.inOut' });
-    this.add.rectangle(LARG / 2, ALT / 2, LARG, ALT, 0x1a1530, 0.06);
+    // cenário: praça de pedra nas batalhas comuns, vinhedo com tempestade de Bruma nos chefes
+    const chefe = no.t === 'chefe' || no.t === 'boss';
+    const fundo = this.add.image(LARG / 2, ALT / 2, chefe ? 'batalha-r1-chefe' : 'batalha-r1'); fundo.setScale(Math.max(LARG / fundo.width, ALT / fundo.height) * 1.06);
+    this.tweens.add({ targets: fundo, scale: fundo.scale * 1.03, x: LARG / 2 + 6, yoyo: true, repeat: -1, duration: 7000, ease: 'Sine.inOut' });
+    // névoa da Bruma passando no meio do campo e partículas de luz no ar
+    this.add.particles(0, 0, 'ponto', { x: { min: -60, max: LARG + 60 }, y: { min: 330, max: 520 }, speedX: { min: -18, max: -6 }, scale: { start: 3.2, end: 4.6 }, alpha: { start: 0.16, end: 0 }, tint: 0xb9b6c6, lifespan: 5200, frequency: 140 });
+    this.add.particles(0, 0, 'ponto', { x: { min: 0, max: LARG }, y: { min: 0, max: ALT }, speedY: { min: -14, max: -4 }, speedX: { min: -6, max: 6 }, scale: { start: 0.14, end: 0 }, alpha: { start: 0.9, end: 0 }, tint: chefe ? [0xff9a4d, 0xffd27a] : [0xfff2b0, 0xffffff], lifespan: 4000, frequency: 90, blendMode: 'ADD' }).setDepth(25);
+    // vinheta: escurece as bordas e foca o centro da luta
+    const vin = this.add.graphics().setDepth(24);
+    for (let i = 0; i < 14; i++) { vin.lineStyle(14, 0x07060c, 0.06 + i * 0.012); vin.strokeRect(-i * 6, -i * 6, LARG + i * 12, ALT + i * 12); }
+    vin.fillStyle(0x07060c, 0.35).fillRect(0, ALT - 150, LARG, 150);
     this.cor = this.cameras.main.postFX ? this.cameras.main.postFX.addColorMatrix() : null;
-    this.sat = { v: -0.35 }; if (this.cor) this.cor.saturate(this.sat.v);
+    this.sat = { v: -0.2 }; if (this.cor) this.cor.saturate(this.sat.v);
     this.faiscas = this.add.particles(0, 0, 'ponto', { speed: { min: 80, max: 260 }, scale: { start: 0.7, end: 0 }, lifespan: 520, emitting: false, blendMode: 'ADD' }).setDepth(30);
 
     // aliados
@@ -387,7 +396,11 @@ class Batalha extends Phaser.Scene {
     const c = this.add.container(LARG / 2, 780).setDepth(46);
     const bg = this.add.graphics().fillStyle(0xe9c46a, 1).fillRoundedRect(-150, -28, 300, 56, 14);
     c.add([bg, texto(this, 0, 0, rot, 20, '#1b1408', { stroke: '#e9c46a', strokeThickness: 0 })]);
-    c.setSize(300, 56).setInteractive({ useHandCursor: true }).once('pointerdown', cb);
+    let foi = false;
+    const vai = () => { if (foi) return; foi = true; this.tweens.killTweensOf(c); cb(); };
+    c.setSize(300, 56).setInteractive({ useHandCursor: true }).on('pointerdown', vai);
+    // plano B: qualquer toque na tela depois de 1,5 s também continua
+    this.time.delayedCall(1500, () => this.input.on('pointerdown', vai));
     this.tweens.add({ targets: c, scale: 1.05, yoyo: true, repeat: -1, duration: 600 });
   }
 }

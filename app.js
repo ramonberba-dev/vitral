@@ -517,7 +517,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f) };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '5';
+const VERSAO_ASSETS = '7';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -567,7 +567,8 @@ window.VJ = {
   sfx: k => SFX[k] && SFX[k](),
   video: (nome, depois) => tocarVideo(nome, depois),
   sair: () => fecharJogo(),
-  voltarMapa: () => { hudJogo(); JOGO && JOGO.scene.start('explorar'); },
+  // a batalha precisa parar: scene.start pelo jogo não fecha a cena que estava rodando
+  voltarMapa: () => { hudJogo(); if (!JOGO) return; JOGO.scene.stop('batalha'); JOGO.scene.start('explorar'); },
   perder: () => { const p = pAtual(); falaAnjo(p, 'derrota'); salvar(); hudJogo(); },
   // chamado quando o herói chega no próximo ponto do mapa
   interagir(i) {
