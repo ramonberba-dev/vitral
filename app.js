@@ -249,6 +249,15 @@ function toast(txt) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = txt; document.body.appendChild(t);
   clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 2600);
 }
+// Erros inesperados: avisam na tela e ficam guardados (os pais veem em Mais), para achar travamentos no celular
+const ERROS = 'vitral_erros';
+function registrarErro(msg, onde) {
+  const e = { em: new Date().toLocaleString('pt-BR'), msg: String(msg).slice(0, 200), onde: String(onde || '').slice(0, 120), v: typeof VERSAO_ASSETS === 'undefined' ? '?' : VERSAO_ASSETS, tela: `${UI.perfil || '-'}/${UI.aba}` };
+  try { const l = JSON.parse(localStorage.getItem(ERROS) || '[]'); l.unshift(e); localStorage.setItem(ERROS, JSON.stringify(l.slice(0, 15))); } catch {}
+  toast('Ops, deu um erro. Os pais podem ver em Mais.');
+}
+window.addEventListener('error', e => registrarErro(e.message, `${(e.filename || '').split('/').pop()}:${e.lineno}`));
+window.addEventListener('unhandledrejection', e => registrarErro(e.reason && (e.reason.message || e.reason), 'promessa'));
 function combo(txt) { const c = document.createElement('div'); c.className = 'combo'; c.textContent = txt; document.body.appendChild(c); setTimeout(() => c.remove(), 1200); }
 
 // ---------- componentes ----------
@@ -310,6 +319,7 @@ function renderEntrada() {
     <button class="perfil" data-a="entrar" data-k="pais"><div class="ava" style="background:var(--gold)">✦</div><div style="flex:1">Pais<div class="muted small">aprovar, acompanhar e lançar missões</div></div>🔒</button>
     <div class="grid2"><button class="btn sm" data-a="som">${UI.som ? '🔊 Som ligado' : '🔇 Ligar o som'}</button>
     <button class="btn sm" data-a="conectarTela">${conectado() ? `${syncDot()} Conectado` : '🔗 Conectar aparelho'}</button></div>
+    <p class="small muted" style="text-align:center;margin:0">versão ${VERSAO_ASSETS}</p>
   </div>` + (UI.overlay || '');
 }
 
@@ -499,6 +509,7 @@ function paisMais() {
       <button class="btn gold" data-a="salvarAjustes">Salvar ajustes</button>
       <button class="btn sm" data-a="familiaZerar">Barra da Família entregue: recomeçar</button>
       <button class="btn sm bad" data-a="resetar">Apagar os dados deste aparelho</button></div>
+    ${(() => { let l = []; try { l = JSON.parse(localStorage.getItem(ERROS) || '[]'); } catch {} return l.length ? `<div class="card"><h3>Erros deste aparelho</h3><p class="small muted">Se algo travar, tire um print desta lista e mande para o Claude.</p>${l.map(x => `<p class="small" style="margin:0"><b>${esc(x.em)}</b> · v${esc(x.v)} · ${esc(x.tela)}<br>${esc(x.msg)} <span class="muted">(${esc(x.onde)})</span></p>`).join('')}</div>` : ''; })()}
     <div class="card"><h3>Sincronização</h3>
       <p class="small muted">${conectado() ? `Conectado ${syncDot()} · última sincronização ${S.sync.ultima ? new Date(S.sync.ultima).toLocaleTimeString('pt-BR') : 'ainda não'}${UI.syncErro ? ' · ' + esc(UI.syncErro) : ''}` : 'Este aparelho ainda não está conectado.'}</p>
       ${conectado() ? `<p class="small">Código da família: <b>${esc(S.sync.chave)}</b> · use o mesmo código nos celulares dos filhos.</p><button class="btn sm" data-a="sincronizarJa">Sincronizar agora</button>` : '<button class="btn sm gold" data-a="conectarTela">Conectar este aparelho</button>'}</div>`;
@@ -661,7 +672,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '11';
+const VERSAO_ASSETS = '12';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
