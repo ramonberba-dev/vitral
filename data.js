@@ -141,6 +141,16 @@ const REINO1 = {
   ],
 };
 
+// o que os peregrinos do mapa contam (um por peregrino, na ordem em que são achados)
+const FALAS_PEREGRINO = [
+  'Dizem que o vitral da Cidade do Rei se quebrou e os cacos caíram aqui nas Colinas. Ache todos!',
+  'São Francisco conversou com um lobo em Gúbio. E o lobo obedeceu. Respeito, né?',
+  'Tem baú escondido onde ninguém anda. Não fui eu que te contei.',
+  'O Insaciável come tudo e nunca fica feliz. Comer devagar também é Temperança.',
+  'A Bruma odeia gente que agradece. Experimenta agradecer alguém hoje.',
+  'São Carlo Acutis fazia sites e amava a Eucaristia. Santo de moletom existe sim.',
+];
+
 const INIMIGOS = {
   larva:      { nome: 'Larva da Preguiça', hp: 60,  atk: 9,  arte: 'larva' },
   beliscao:   { nome: 'Beliscão',          hp: 55,  atk: 9,  arte: 'beliscao' },

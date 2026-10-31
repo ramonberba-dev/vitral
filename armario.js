@@ -100,6 +100,26 @@ const bonusDoItem = d => { const b = { vida: 0, ataque: 0, defesa: 0, critico: 0
 // ---------- telas ----------
 function itemIcone(d, extra = '') { return `<span class="ico r${d.rar}${d.vox ? ' vox' : ''}" ${extra}><img src="${d.img}" alt="${esc(d.nome)}" loading="lazy"></span>`; }
 
+// herói girando 360° (quadros de um vídeo giratório): gira sozinho e com o dedo
+const GIROS = ['kael'], GIRO_Q = 24;
+function vitrineHeroi(p, cheio) {
+  const k = p.heroi, nome = esc(p.nick || DEVOTOS[k].nome), temGiro = GIROS.includes(k);
+  const gala = cheio && !(temGiro && UI.armGiro);
+  const troca = cheio && temGiro ? `<button class="giro-troca" data-a="armGiro">${gala ? '🔄 Girar' : '✨ Gala'}</button>` : '';
+  if (gala || !temGiro) return `<div class="heroi-hd${gala ? ' gala' : ''}"><img src="assets/hd/${k}${gala ? '-gala' : ''}.jpg" alt="${esc(DEVOTOS[k].nome)}">${troca}<b>${nome}</b></div>`;
+  return `<div class="heroi-hd giro-box">${troca}<div class="giro" style="background-image:url(assets/giro/${k}.jpg)"></div><span class="giro-dica">↔ arraste para girar</span><b>${nome}</b></div>`;
+}
+const GIRO = { q: 0, arrasto: null, parado: 0 };
+function pintarGiro() { const g = document.querySelector('.giro'); if (g) g.style.backgroundPositionX = (GIRO.q / (GIRO_Q - 1) * 100) + '%'; }
+setInterval(() => { if (!document.querySelector('.giro') || GIRO.arrasto || Date.now() < GIRO.parado) return; GIRO.q = (GIRO.q + 1) % GIRO_Q; pintarGiro(); }, 110);
+document.addEventListener('pointerdown', e => {
+  const g = e.target.closest('.giro'); if (!g) return;
+  GIRO.arrasto = { x: e.clientX, q: GIRO.q };
+  const mover = ev => { const d = Math.round((ev.clientX - GIRO.arrasto.x) / 10); GIRO.q = ((GIRO.arrasto.q - d) % GIRO_Q + GIRO_Q) % GIRO_Q; pintarGiro(); };
+  const soltar = () => { GIRO.arrasto = null; GIRO.parado = Date.now() + 2500; document.removeEventListener('pointermove', mover); document.removeEventListener('pointerup', soltar); document.removeEventListener('pointercancel', soltar); };
+  document.addEventListener('pointermove', mover); document.addEventListener('pointerup', soltar); document.addEventListener('pointercancel', soltar);
+});
+
 function telaArmario(p) {
   garantirArmario(p);
   if (!p.heroi) return `<div class="card"><h3>🎒 Armário</h3><p class="muted">Faça o Despertar primeiro: o Anjo precisa saber quem é o seu herói.</p></div>`;
@@ -113,7 +133,7 @@ function telaArmario(p) {
   const cheio = SLOTS.every(([s]) => equipado(p, s));
   return `<div class="vitrine">
       <div class="col">${SLOTS.slice(0, 4).map(slotBtn).join('')}</div>
-      <div class="heroi-hd${cheio ? ' gala' : ''}"><img src="assets/hd/${p.heroi}${cheio ? '-gala' : ''}.jpg" alt="${esc(DEVOTOS[p.heroi].nome)}"><b>${esc(p.nick || DEVOTOS[p.heroi].nome)}</b></div>
+      ${vitrineHeroi(p, cheio)}
       <div class="col">${SLOTS.slice(4).map(slotBtn).join('')}${cheio ? '<button class="slot ok" data-a="fotoOficial"><span class="vazio">✨</span><small>Foto oficial</small></button>' : ''}</div>
     </div>
     <p class="small" style="text-align:center;margin:-4px 0 0;color:var(--gold)">${bonusTexto(b) || 'Toque num encaixe para equipar um item.'}</p>
@@ -183,6 +203,7 @@ Object.assign(ACOES, {
     if (cheio && !p.galaVista) { p.galaVista = true; evento(p.id, 'Liberou a Foto Oficial do herói'); salvar(); SFX.fanfarra(); UI.aba = 'armario'; return ACOES.fotoOficial(); }
     salvar(); UI.overlay = null; toast(`${d.nome} equipado!`); render();
   },
+  armGiro() { UI.armGiro = !UI.armGiro; render(); },
   fotoOficial() {
     const p = pAtual();
     UI.overlay = `<div class="over bau-over" style="--rc:#f2c94c"><div class="foto-oficial"><span class="cert-rar">✨ Foto Oficial</span>

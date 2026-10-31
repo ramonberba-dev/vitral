@@ -445,13 +445,14 @@ function telaMapa(p) {
     if (lv) aviso = '🐛 Uma Larva bloqueia o caminho. Repare na vida real.';
     else if (prox.t === 'bruma' && sl < prox.selos) aviso = `🌫 O próximo portão pede ${prox.selos} Selo${prox.selos > 1 ? 's' : ''} de Temperança (você tem ${sl}).`;
     else if (prox.t === 'boss' && !bossSemanaLiberado(p)) aviso = '👹 O boss da semana abre com a missão grande da semana aprovada.';
-    else if (prox.t !== 'bruma' && p.chama < 1) aviso = '🔥 Sem Chama: cumpra uma missão real para jogar.';
+    else if (['batalha', 'boss', 'chefe'].includes(prox.t) && p.chama < 1) aviso = '🔥 Sem Chama para lutar: dá para explorar o mapa, mas a luta pede uma missão real cumprida.';
   }
   return `<div class="vitral-head" style="background-image:url(assets/reinos/${REINO1.vitral}.jpg);height:220px"><div><span class="sec">Reino I · Temperança</span><h2>${REINO1.nome}</h2><p class="small muted">${Math.min(no, tot)} de ${tot} pontos · ${sl} Selo${sl === 1 ? '' : 's'} · 💊 ${p.pilulas}</p></div></div>
   ${barra(Math.min(no, tot) / tot * 100)}
   ${no >= tot ? `<div class="card" style="border-color:var(--gold)"><b>👑 Reino I libertado!</b><p class="small muted">Lenda desbloqueada: São Francisco de Assis. Os Vales de Pedra chegam na próxima versão.</p></div>` :
-    `<div class="card"><span class="sec">Próximo ponto</span><b>${esc(prox.titulo)}</b>${aviso ? `<p class="small" style="color:var(--warn)">${aviso}</p>` : '<p class="small muted">Ande até ele no mapa. Cada ponto gasta 1 Chama.</p>'}</div>`}
+    `<div class="card"><span class="sec">Próximo ponto</span><b>${esc(prox.titulo)}</b>${aviso ? `<p class="small" style="color:var(--warn)">${aviso}</p>` : '<p class="small muted">Ande até ele no mapa. Só as batalhas gastam Chama. Explore: tem cacos de vitral, baús escondidos e peregrinos pelo caminho.</p>'}</div>`}
   <button class="btn gold full" style="font-size:1.15rem;padding:16px" data-a="entrarReino">▶ Entrar no reino</button>
+  <div class="card desafio-card"><div><b>⚡ Desafio da Ponte</b><p class="small muted" style="margin:2px 0 0">Corra pela ponte, quebre os vasos para ficar mais forte e derrote o Servo. ${Math.max(0, DESAFIO_GRATIS - desafioHoje(p).n)} de ${DESAFIO_GRATIS} corridas grátis hoje.</p></div><button class="btn gold" data-a="desafio">Correr</button></div>
   ${telaDiario(p)}
   <p class="small muted" style="text-align:center">Segure o dedo na tela para andar. Na batalha, toque na hora certa para dar CRÍTICO e para DEFENDER.</p>`;
 }
@@ -765,10 +766,10 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '22';
+const VERSAO_ASSETS = '24';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
-  h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
+  h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${window.VJ.cena === 'desafio' ? '⚡ Desafio da Ponte' : REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
 }
 function abrirJogo() {
   const p = pAtual();
@@ -780,10 +781,22 @@ function abrirJogo() {
     document.body.appendChild(box);
   }
   box.hidden = false; hudJogo();
+  window.VJ.cena = 'explorar';
   const iniciar = () => { if (!JOGO) JOGO = window.criarJogo('jogo-canvas'); else JOGO.scene.start('explorar'); };
   const reino = () => { if (!p.reino.abertura) { p.reino.abertura = true; salvar(); tocarVideo('abertura-r1', iniciar); } else iniciar(); };
   // na primeira vez, o Prólogo (a queda e a origem da Bruma) vem antes de tudo
   if (!p.prologo) { p.prologo = true; salvar(); tocarVideo('prologo', reino); } else reino();
+}
+// Desafio da Ponte: 3 corridas grátis por dia; depois, cada corrida gasta 1 Chama
+const DESAFIO_GRATIS = 3;
+function desafioHoje(p) { if (!p.desafio || p.desafio.dia !== hoje()) p.desafio = { dia: hoje(), n: 0 }; return p.desafio; }
+function abrirDesafio() {
+  const p = pAtual(); if (!p.heroi) return abrirDesperta();
+  if (!window.VJ.comecarDesafio()) return;
+  let box = document.getElementById('jogo');
+  if (!box) { box = document.createElement('div'); box.id = 'jogo'; box.innerHTML = '<div id="jogo-hud"></div><div id="jogo-canvas"></div>'; document.body.appendChild(box); }
+  window.VJ.cena = 'desafio'; box.hidden = false; hudJogo();
+  if (!JOGO) JOGO = window.criarJogo('jogo-canvas'); else JOGO.scene.start('desafio');
 }
 function fecharJogo() {
   const box = document.getElementById('jogo'); if (box) box.hidden = true;
@@ -812,6 +825,38 @@ function mostrarHistoria(n, depois) {
 window.VJ = {
   versao: VERSAO_ASSETS, DEVOTOS, INIMIGOS, COMBOS, reino: REINO1, stats,
   p: () => pAtual(),
+  cena: 'explorar',
+  comecarDesafio() {
+    const p = pAtual(), d = desafioHoje(p);
+    if (d.n < DESAFIO_GRATIS) { d.n++; salvar(); hudJogo(); return true; }
+    if (p.chama < 1) { toast('As 3 corridas grátis de hoje acabaram. Cumpra uma missão para ganhar Chama!'); SFX.toin(); return false; }
+    p.chama--; d.n++; salvar(); hudJogo(); return true;
+  },
+  fimDesafio({ venceu, abates }) {
+    const p = pAtual(), lum = 2 + Math.floor(abates / 4) + (venceu ? 8 : 0);
+    p.lumens += lum; let texto = `${abates} inimigos derrotados\n+${lum} ✦ Lumens`;
+    if (venceu) { const t = Math.random() < 0.35 ? 'prata' : 'bronze'; ganharBau(p, t); texto += `\n🎁 ${BAUS[t].nome} no Armário!`; evento(p.id, 'Venceu o Desafio da Ponte'); }
+    ganharXpHeroi(p, venceu ? 25 : 8); texto += `\n+${venceu ? 25 : 8} XP do herói`;
+    salvar(); hudJogo();
+    const d = desafioHoje(p);
+    return { texto, podeDeNovo: d.n < DESAFIO_GRATIS || p.chama > 0 };
+  },
+  // exploração livre do mapa (explorar.js): o que já foi pego fica salvo no jogador
+  explora: () => { const p = pAtual(); p.explora = p.explora || { pegos: [] }; return p.explora; },
+  pegarExtra(i, t) {
+    const p = pAtual(), ex = window.VJ.explora();
+    if (ex.pegos.includes(i)) return {};
+    ex.pegos.push(i);
+    if (t === 'caco') {
+      const n = ex.pegos.filter(j => EXTRAS[j] === 'caco').length, tot = EXTRAS.filter(x => x === 'caco').length;
+      p.lumens += 1; SFX.moeda();
+      if (n === tot) { ganharBau(p, 'ouro'); toast(`Todos os ${tot} cacos! 🎁 Baú de Ouro no Armário`); SFX.fanfarra(); evento(p.id, 'Achou todos os cacos de vitral'); }
+      else if (n % 10 === 0) { ganharBau(p, 'prata'); toast(`${n} cacos! 🎁 Baú de Prata no Armário`); SFX.fanfarra(); }
+      else toast(`💎 Caco de vitral ${n}/${tot} · +1 ✦`);
+    } else if (t === 'bau') { ganharBau(p, 'bronze'); p.lumens += 3; SFX.sinos(); toast('Baú escondido! 🎁 Baú de Bronze no Armário e +3 ✦'); }
+    else { p.lumens += 2; salvar(); hudJogo(); return { fala: FALAS_PEREGRINO[ex.pegos.filter(j => EXTRAS[j] === 'peregrino').length - 1] || FALAS_PEREGRINO[0] }; }
+    salvar(); hudJogo(); return {};
+  },
   salvar: () => { salvar(); hudJogo(); },
   larvas: () => larvasAtivas(UI.perfil).length,
   musica: f => tocar(f),
@@ -851,8 +896,10 @@ window.VJ = {
       p.reino.no++; evento(p.id, `Abriu ${n.titulo}`); SFX.sinos(); salvar(); hudJogo(); toast('O Selo dissolveu a Bruma!'); return { tipo: 'ok' };
     }
     if (n.t === 'boss' && !bossSemanaLiberado(p)) return avisa('O boss da semana só sai com a missão grande da semana aprovada.');
-    if (p.chama < 1) { falaAnjo(p, 'semChama'); salvar(); return avisa('Sem Chama! Cumpra uma missão de verdade para continuar.'); }
-    p.chama--; salvar(); hudJogo();
+    // só as lutas gastam Chama: história, baú e capela ficam livres para explorar
+    const luta = ['batalha', 'boss', 'chefe'].includes(n.t);
+    if (luta && p.chama < 1) { falaAnjo(p, 'semChama'); salvar(); return avisa('Sem Chama para lutar! Explore o mapa ou cumpra uma missão de verdade.'); }
+    if (luta) { p.chama--; salvar(); hudJogo(); }
     if (n.t === 'historia') {
       mostrarHistoria(n, () => {
         if (n.ganha && !p.devotos[n.ganha]) { p.devotos[n.ganha] = { lvl: 1, dup: 0 }; darCarta(p, 'ali:' + n.ganha, false); toast(`${DEVOTOS[n.ganha].nome} virou seu Aliado! Carta nova no deck`); SFX.fanfarra(); }
@@ -862,7 +909,7 @@ window.VJ = {
     }
     if (n.t === 'bau') { p.lumens += 8; p.pilulas++; p.reino.no++; SFX.moeda(); salvar(); hudJogo(); toast('Baú! +8 Lumens e 1 Pílula de Frei Galvão'); return { tipo: 'ok' }; }
     if (n.t === 'santuario') { p.pilulas += 2; p.chama = Math.min(CHAMA_MAX, p.chama + 1); p.reino.no++; SFX.sinos(); salvar(); hudJogo(); toast('Capela: +2 Pílulas e a Chama de volta'); return { tipo: 'ok' }; }
-    if (!p.equipe.some(k => p.devotos[k])) { p.chama++; salvar(); return avisa('Monte um time na aba Equipe.'); }
+    if (!p.equipe.some(k => p.devotos[k])) { if (luta) p.chama++; salvar(); return avisa('Monte um time na aba Equipe.'); }
     return { tipo: 'batalha', video: n.t === 'chefe' ? 'chefe-r1' : null };
   },
   vencer(no) {
@@ -993,6 +1040,7 @@ const ACOES = {
   cofreSacar(id) { const p = pAtual(), c = p.cofre.find(x => x.id === id); if (!c) return; const ganho = c.tal + Math.max(1, r(c.tal * .1)); p.talentos += ganho; p.emitidos[mesAtual()] = (p.emitidos[mesAtual()] || 0) + (ganho - c.tal); p.cofre = p.cofre.filter(x => x !== c); SFX.fanfarra(); salvar(); toast(`+${ganho} Talentos`); render(); },
   entrarReino() { abrirJogo(); },
   sairJogo() { fecharJogo(); },
+  desafio() { abrirDesafio(); },
   // pais
   aval(id, n) { const m = S.missoes.find(x => x.id === id); aprovar(m, +n); n == 3 ? SFX.fanfarra() : SFX.moeda(); render(); },
   refazer(id) { const m = S.missoes.find(x => x.id === id); pedirRefazer(m, document.getElementById('com-' + id).value.trim()); SFX.toin(); render(); },

@@ -8,6 +8,11 @@ const ESC_BONECO = 0.72;        // quadro 96x128 → ~92 px de altura
 const VEL = 0.21;               // px por ms
 const ANDA = ['kael', 'clara', 'simo', 'tonho', 'luzia', 'cisco', 'jana', 'tessa', 'gio', 'duda', 'guto', 'avila', 'yuri', 'zeca'];
 
+// 23 cacos de vitral, 4 baús escondidos e 3 peregrinos por reino
+const EXTRAS = Array.from({ length: 30 }, (_, i) => i % 8 === 3 ? 'bau' : i % 8 === 7 ? 'peregrino' : 'caco');
+function semente(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const sorteiaCom = (rnd, a) => a[Math.floor(rnd() * a.length)];
+
 class Explorar extends Phaser.Scene {
   constructor() { super('explorar'); }
   create() {
@@ -20,6 +25,7 @@ class Explorar extends Phaser.Scene {
     this.montarPontos();
     this.montarTime(p);
     this.montarAmbiente();
+    this.montarExtras(p);
 
     const cam = this.cameras.main;
     cam.setBounds(0, 0, this.W, this.H).setZoom(Z).startFollow(this.lider, true, 0.1, 0.1);
@@ -30,6 +36,7 @@ class Explorar extends Phaser.Scene {
     this.camUI = this.cameras.add(0, 0, this.scale.width, this.scale.height);
     this.camUI.ignore(this.children.list.filter(o => o !== this.ui));
     this.montarJoystick();
+    this.contador = texto(this, 14 * Z, 18 * Z, '', 14 * Z, '#f3d27e', { align: 'left' }).setOrigin(0, 0.5); this.ui.add(this.contador); this.cameras.main.ignore(this.contador); this.pintarContador();
     this.teclas = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
     VJ.musica(VJ.reino.musica);
   }
@@ -181,7 +188,64 @@ class Explorar extends Phaser.Scene {
     this.anjoBrilho.setPosition(this.anjo.x, this.anjo.y);
     [L, ...this.seguidores].forEach(s => { s.setDepth(s.y); s.sombra.setPosition(s.x, s.y).setDepth(s.y - 1); });
     this.anjo.setDepth(L.y + 200); this.anjoBrilho.setDepth(L.y + 199);
+    this.checarExtras();
     this.checarPontos();
+  }
+  // exploração livre: cacos de vitral, baús escondidos e peregrinos espalhados nas partes andáveis do mapa.
+  // As posições saem de um sorteio com semente fixa: são as mesmas toda vez e em todo aparelho.
+  montarExtras(p) {
+    const ex = window.VJ.explora(), rnd = semente(7719), pos = [];
+    const longeDe = (x, y, lista, d) => lista.every(q => Math.hypot(q.x - x, q.y - y) > d);
+    for (let t = 0; t < 9000 && pos.length < EXTRAS.length; t++) {
+      const x = 40 + rnd() * (this.W - 80), y = 40 + rnd() * (this.H - 80);
+      const c = this.chao, px = Math.floor(x * c.k), py = Math.floor(y * c.k);
+      if (c.d[(py * c.w + px) * 4] <= 127) continue;
+      if (!longeDe(x, y, this.pos, 70) || !longeDe(x, y, pos, 72)) continue;
+      pos.push({ x, y });
+    }
+    this.extras = pos.map((q, i) => ({ ...q, i, t: EXTRAS[i] }));
+    this.extras.forEach(e => {
+      if (ex.pegos.includes(e.i)) return;
+      if (e.t === 'caco') {
+        const cor = sorteiaCom(rnd, [0xe5546b, 0x5aa9e6, 0x5fd39a, 0xe9c46a, 0xa77bf3, 0xf08a3c]);
+        e.obj = this.add.image(e.x, e.y - 16, 'caco').setTint(cor).setScale(0.9).setDepth(e.y).setBlendMode('ADD');
+        e.brilho = this.add.circle(e.x, e.y - 16, 16, cor, 0.25).setBlendMode('ADD').setDepth(e.y - 1);
+        this.tweens.add({ targets: e.obj, y: e.y - 24, angle: 12, yoyo: true, repeat: -1, duration: 900 + rnd() * 500, ease: 'Sine.inOut' });
+        this.tweens.add({ targets: e.brilho, scale: 1.5, alpha: 0.05, yoyo: true, repeat: -1, duration: 1100 });
+      } else if (e.t === 'bau') {
+        e.obj = this.add.image(e.x, e.y, 'bau').setOrigin(0.5, 1).setScale(0.55).setDepth(e.y).setTint(0xd9d9ff);
+        this.tweens.add({ targets: e.obj, angle: { from: -3, to: 3 }, yoyo: true, repeat: -1, duration: 700 });
+      } else {
+        const k = ANDA[(e.i * 5) % ANDA.length]; this.criarAnims(k);
+        e.obj = this.add.sprite(e.x, e.y, 'anda-' + k, 0).setOrigin(0.5, 0.96).setScale(ESC_BONECO * 0.9).setDepth(e.y);
+        e.balao = texto(this, e.x, e.y - 104, '💬', 22).setDepth(e.y + 1);
+        this.tweens.add({ targets: e.balao, y: e.y - 112, yoyo: true, repeat: -1, duration: 600 });
+      }
+    });
+  }
+  pintarContador() {
+    const ex = window.VJ.explora(), n = ex.pegos.filter(i => EXTRAS[i] === 'caco').length, tot = EXTRAS.filter(t => t === 'caco').length;
+    this.contador.setText(`💎 ${n}/${tot} cacos`);
+  }
+  checarExtras() {
+    if (this.ocupado || !this.extras) return;
+    const L = this.lider;
+    this.extras.forEach(e => {
+      if (!e.obj || e.pego) return;
+      if (Math.hypot(e.x - L.x, e.y - L.y) > (e.t === 'peregrino' ? 70 : 42)) return;
+      e.pego = true;
+      const r = window.VJ.pegarExtra(e.i, e.t);
+      if (e.t === 'peregrino') {
+        e.balao.destroy();
+        const b = this.add_(texto(this, e.x, e.y - 120, r.fala, 15, '#ffffff', { wordWrap: { width: 230 }, align: 'center', backgroundColor: 'rgba(20,15,32,.85)', padding: { x: 10, y: 8 } })).setDepth(90000);
+        this.time.delayedCall(4200, () => this.tweens.add({ targets: b, alpha: 0, duration: 500, onComplete: () => b.destroy() }));
+        return;
+      }
+      const fx = this.add_(this.add.particles(e.x, e.y - 16, 'ponto', { speed: { min: 60, max: 180 }, scale: { start: 0.5, end: 0 }, lifespan: 600, tint: [0xfff2b0, 0xffffff], blendMode: 'ADD', emitting: false })).setDepth(90000);
+      fx.explode(18); this.time.delayedCall(700, () => fx.destroy());
+      this.tweens.add({ targets: [e.obj, e.brilho].filter(Boolean), y: '-=40', alpha: 0, scale: 1.4, duration: 450, onComplete: () => { e.obj.destroy(); e.brilho && e.brilho.destroy(); } });
+      this.pintarContador();
+    });
   }
   checarPontos() {
     const VJ = window.VJ, p = VJ.p(), i = p.reino.no;

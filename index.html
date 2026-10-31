@@ -285,9 +285,15 @@ p{margin:0}
 .bau-palco .ganho{position:relative;animation:ganhoSurge .8s cubic-bezier(.2,1.4,.4,1) both}
 @keyframes ganhoSurge{from{transform:scale(.2) rotate(-12deg);opacity:0;filter:brightness(4)}to{transform:none;opacity:1;filter:none}}
 .bau-palco h3,.bau-palco .cert-rar,.bau-palco .small,.bau-palco .row{position:relative}
+.giro{position:absolute;inset:0;background-repeat:no-repeat;background-size:2400% 100%;background-position:0 0;touch-action:pan-y;cursor:grab}
+.giro-box{background:#dcdcdc}.giro-box::after{display:none}
+.giro-dica{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:.68rem;font-weight:800;color:#3b3550;opacity:.75;pointer-events:none}
+.giro-troca{position:absolute;z-index:2;top:8px;right:8px;border:0;border-radius:999px;background:rgba(20,15,32,.8);color:var(--gold);font:inherit;font-size:.72rem;font-weight:800;padding:4px 9px}
+.heroi-hd b{pointer-events:none}
 .heroi-hd.gala{box-shadow:0 0 0 2px var(--gold),0 0 28px -6px var(--gold)}.heroi-hd.gala img{inset:0;height:100%;object-fit:cover}
 .foto-oficial{max-height:100%;overflow:auto;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:380px;width:100%}
 .foto-oficial img{height:min(60vh,520px);width:auto;max-width:80vw;aspect-ratio:9/16;object-fit:cover;border-radius:20px;border:3px solid var(--gold);box-shadow:0 0 40px -6px var(--gold);animation:ganhoSurge .9s cubic-bezier(.2,1.4,.4,1) both}
+.desafio-card{display:flex;align-items:center;gap:12px;border-color:var(--gold);background:linear-gradient(135deg,rgba(233,196,106,.16),var(--surface))}
 /* adicionar jogador */
 .perfil.novo{border-style:dashed;background:rgba(28,24,41,.7)}.perfil.novo .ava{background:transparent;border:2px dashed var(--gold);color:var(--gold);font-size:1.3rem}
 .cor{width:40px;height:40px;border-radius:50%;border:3px solid transparent;cursor:pointer}.cor.on{border-color:#fff;box-shadow:0 0 0 2px var(--gold)}
@@ -315,6 +321,7 @@ html.calmo *{animation-duration:.01s!important;animation-iteration-count:1!impor
 <script src="data.js"></script>
 <script src="game.js"></script>
 <script src="explorar.js"></script>
+<script src="desafio.js"></script>
 <script src="sync.js"></script>
 <script src="app.js"></script>
 <script src="armario.js"></script>

@@ -22,7 +22,8 @@ function texturasBase(cena) {
   g.fillStyle(0x7a4a22, 1).fillRoundedRect(0, 14, 64, 40, 6); g.fillStyle(0x9a6230, 1).fillRoundedRect(0, 0, 64, 22, { tl: 14, tr: 14, bl: 0, br: 0 });
   g.fillStyle(0xe9c46a, 1).fillRect(0, 18, 64, 6).fillRect(28, 12, 8, 18); g.generateTexture('bau', 64, 54); g.clear();
   g.fillStyle(0x000000, 0.35).fillEllipse(40, 10, 80, 20); g.generateTexture('sombra', 80, 20); g.clear();
-  g.fillStyle(0xffffff, 1).fillTriangle(0, 0, 24, 0, 12, 16); g.generateTexture('seta', 24, 16); g.destroy();
+  g.fillStyle(0xffffff, 1).fillTriangle(0, 0, 24, 0, 12, 16); g.generateTexture('seta', 24, 16); g.clear();
+  g.fillStyle(0xffffff, 1).fillTriangle(9, 0, 18, 11, 0, 11).fillTriangle(0, 11, 18, 11, 9, 26); g.generateTexture('caco', 18, 26); g.destroy();
 }
 function precarregar(cena) {
   const v = window.VJ.versao;
@@ -49,7 +50,7 @@ class Carregar extends Phaser.Scene {
     this.load.on('progress', v => barra.width = 280 * v);
     precarregar(this);
   }
-  create() { texturasBase(this); this.scene.start('explorar'); }
+  create() { texturasBase(this); this.scene.start(window.VJ.cena || 'explorar'); }
 }
 
 // ===================== BATALHA =====================
@@ -479,6 +480,6 @@ window.criarJogo = function (pai) {
     type: Phaser.AUTO, parent: pai, width: LARG * Z, height: ALT * Z, backgroundColor: '#0f0d17',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 2 }, render: { antialias: true },
-    scene: [Carregar, Explorar, Batalha],
+    scene: [Carregar, Explorar, Batalha, Desafio],
   });
 };
