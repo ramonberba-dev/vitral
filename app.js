@@ -414,7 +414,7 @@ function telaEquipe(p) {
     <div class="devs">${meus.sort((a, b) => (b === p.heroi) - (a === p.heroi)).map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${k === p.heroi ? '<span class="eq">HERÓI</span>' : '<span class="eq" style="background:#2b2540;color:var(--muted)">ALIADO</span>'}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
     ${p.heroi ? telaDeck(p) : ''}
     <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>
-    <button class="btn sm bad" data-a="recomecar">↺ Recomeçar a jornada</button>`;
+    <div class="card"><span class="sec">Recomeçar</span><p class="small muted">Volta ao Despertar (perguntas e roleta) e sorteia um herói de novo. Missões, Talentos e nick continuam.</p><button class="btn bad full" data-a="recomecar">↺ Recomeçar a jornada</button></div>`;
 }
 function telaLoja(p) {
   const meus = S.resgates.filter(x => x.pid === p.id && x.status === 'pedido');
@@ -680,7 +680,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '13';
+const VERSAO_ASSETS = '14';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
