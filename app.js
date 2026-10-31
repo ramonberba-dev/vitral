@@ -172,6 +172,7 @@ function creditar(p, m) {
   darTalentos(p, r(t.tal * e) + (m.secreta ? 1 : 0));
   p.chama = Math.min(CHAMA_MAX, p.chama + t.chama + (m.secreta ? 1 : 0));
   p.lumens += t.lum;
+  if (m.estrelas === 3) { ganharBau(p, 'prata'); evento(p.id, 'Missão perfeita: Baú de Prata'); }
   if (m.tipo === 'diaria' && p.streakDia !== hoje()) {
     const ontem = hoje(new Date(Date.now() - DIA));
     p.streak = p.streakDia === ontem ? p.streak + 1 : 1; p.streakDia = hoje();
@@ -321,19 +322,20 @@ function render() {
   }
 }
 function renderTela() {
+  try { sessionStorage.setItem('vitral_tela', JSON.stringify({ perfil: UI.perfil, aba: UI.aba, abertura: UI.abertura })); } catch {}
   if (!UI.perfil) return renderEntrada();
   const pais = UI.perfil === 'pais';
   const p = pais ? null : S.players[UI.perfil];
   const abas = pais
     ? [['avaliar', '📸', 'Avaliar'], ['rotina', '📅', 'Rotina'], ['jogo', '🎮', 'Jogo'], ['missoes', '📜', 'Missões'], ['mais', '⚙️', 'Mais']]
-    : [['inicio', '🏠', 'Início'], ['missoes', '📜', 'Missões'], ['mapa', '🗺️', 'Mapa'], ['equipe', '⚔️', 'Equipe'], ['loja', '💰', 'Loja']];
+    : [['inicio', '🏠', 'Início'], ['missoes', '📜', 'Missões'], ['mapa', '🗺️', 'Mapa'], ['equipe', '⚔️', 'Equipe'], ['armario', '🎒', 'Armário'], ['loja', '💰', 'Loja']];
   const pend = S.missoes.filter(m => m.status === 'enviada').length;
   const topo = pais
     ? `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:var(--gold)">✦</div><div><b>Painel dos pais</b><small>tocar para sair</small></div></button>${syncDot()}${somBtn()}</div>`
     : `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div><div><b>${esc(p.nick || p.nome)}</b><small>${RANKS[rankIdx(p.xp)].nome}</small></div></button>
        <div class="res"><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span class="ic-tal">◈${p.talentos}</span></div>${syncDot()}<button class="btn sm" data-a="config" aria-label="Configurações">⚙️</button></div>`;
   const corpo = pais ? telaPais() : telaFilho(p);
-  const nav = `<nav class="nav">${abas.map(([k, i, n]) => `<button data-a="aba" data-k="${k}" class="${UI.aba === k ? 'on' : ''}"><span class="i">${i}</span>${n}${pais && k === 'avaliar' && pend ? `<span class="badge">${pend}</span>` : ''}</button>`).join('')}</nav>`;
+  const nav = `<nav class="nav">${abas.map(([k, i, n]) => `<button data-a="aba" data-k="${k}" class="${UI.aba === k ? 'on' : ''}"><span class="i">${i}</span>${n}${pais && k === 'avaliar' && pend ? `<span class="badge">${pend}</span>` : ''}${!pais && k === 'armario' && p.baus && (p.baus.bronze + p.baus.prata + p.baus.ouro) ? `<span class="badge">${p.baus.bronze + p.baus.prata + p.baus.ouro}</span>` : ''}</button>`).join('')}</nav>`;
   $app.innerHTML = topo + `<main class="screen">${corpo}</main>` + nav + (UI.overlay || '');
 }
 const somBtn = () => `<button class="btn sm" data-a="som" aria-label="Som">${UI.som ? '🔊' : '🔇'}</button>`;
@@ -383,6 +385,7 @@ function telaFilho(p) {
   if (UI.aba === 'mapa') return telaMapa(p);
   if (UI.aba === 'equipe') return telaEquipe(p);
   if (UI.aba === 'loja') return telaLoja(p);
+  if (UI.aba === 'armario') return telaArmario(p);
   return telaInicio(p);
 }
 function telaInicio(p) {
@@ -755,13 +758,14 @@ function stats(k, lvl) {
   if (p && p.heroi === k) {
     const g = 1 + 0.06 * (lvl - 1), soma = { vida: 0, ataque: 0, defesa: 0, critico: 0, dom: 0 };
     barrasDe(k).forEach(([c, , ef]) => { soma[ef] += ((p.barras || {})[c] || 0) * BARRA_EFEITO[ef].por; });
+    const bi = bonusItens(p); Object.keys(soma).forEach(st => { soma[st] += bi[st] || 0; }); // itens do Armário
     return { hp: r(320 * g + soma.vida), atk: r(40 * g + soma.ataque), def: Math.min(BARRA_EFEITO.defesa.max, soma.defesa),
       crit: Math.min(BARRA_EFEITO.critico.max, 5 + soma.critico), dom: r(soma.dom) };
   }
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '20';
+const VERSAO_ASSETS = '21';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -877,6 +881,8 @@ window.VJ = {
     const xp = no.t === 'chefe' ? 80 : no.t === 'boss' ? 45 : 18;
     ganharXpHeroi(p, xp); p.pontos = (p.pontos || 0) + 1; p.ganhouAgora = true;
     texto += `\n+${xp} XP · +1 ponto de barra`;
+    const bau = no.t === 'chefe' ? 'ouro' : no.t === 'boss' ? 'prata' : Math.random() < 0.35 ? 'bronze' : null;
+    if (bau) { ganharBau(p, bau); texto += `\n🎁 ${BAUS[bau].nome}! Abra no Armário`; }
     p.reino.no++; salvar(); hudJogo();
     return { texto, video };
   },
@@ -1126,5 +1132,19 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && document.getElementById('pin')) ACOES.pin(); });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
-render();
-if (conectado()) sincronizar();
+// começa depois que todos os scripts carregaram (armario.js e desperta.js vêm depois deste)
+window.addEventListener('DOMContentLoaded', () => {
+  // puxar a tela para atualizar recarrega a página: volta para a mesma tela, sem repetir a abertura
+  try {
+    const t = JSON.parse(sessionStorage.getItem('vitral_tela') || 'null');
+    if (t && !t.abertura) {
+      UI.abertura = false;
+      if (t.perfil === 'pais' || (t.perfil && S.players[t.perfil] && !S.players[t.perfil].apagado)) {
+        UI.perfil = t.perfil; UI.aba = t.aba || (t.perfil === 'pais' ? 'avaliar' : 'inicio'); rodadaDiaria();
+        if (t.perfil !== 'pais') { garantirCartas(S.players[t.perfil]); if (!S.players[t.perfil].heroi) abrirDesperta(); }
+      }
+    }
+  } catch {}
+  render();
+  if (conectado()) sincronizar();
+});
