@@ -211,7 +211,34 @@ p{margin:0}
 .rcarta.ganhou img{filter:none;transform:scale(1)}
 .sdot{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;vertical-align:middle}
 .sdot.ok{background:var(--good)}.sdot.indo{background:var(--gold)}.sdot.erro{background:var(--bad)}.sdot.off{background:#555}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* abertura animada */
+.abertura{position:fixed;inset:0;overflow:hidden;background:#07060b;cursor:pointer;z-index:5;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.abertura>*{pointer-events:none}
+.ab-fundo{position:absolute;inset:-6%;background:url(assets/reinos/centro.jpg) center top/cover;animation:abFundo 9s ease-out forwards;filter:brightness(.15) saturate(.6)}
+@keyframes abFundo{to{transform:scale(.94);filter:brightness(1) saturate(1.1)}}
+.ab-raios{position:absolute;left:50%;top:13%;width:220vmax;height:220vmax;margin:-110vmax 0 0 -110vmax;background:repeating-conic-gradient(rgba(255,236,170,.16) 0 4deg,transparent 4deg 13deg);mix-blend-mode:screen;opacity:0;-webkit-mask:radial-gradient(circle,#000 0,transparent 42%);mask:radial-gradient(circle,#000 0,transparent 42%);animation:abRaios 40s linear infinite,abAparece 2.5s 1s ease forwards}
+@keyframes abRaios{to{transform:rotate(360deg)}}
+@keyframes abAparece{to{opacity:1}}
+.ab-luz{position:absolute;left:50%;top:13%;width:60vmin;height:60vmin;margin:-30vmin 0 0 -30vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,244,200,.95),rgba(233,196,106,.35) 35%,transparent 70%);mix-blend-mode:screen;opacity:0;animation:abLuz 2.2s .6s ease-out forwards,abRespira 4s 2.8s ease-in-out infinite}
+@keyframes abLuz{0%{opacity:0;transform:scale(.2)}55%{opacity:1;transform:scale(1.5)}100%{opacity:.75;transform:scale(1)}}
+@keyframes abRespira{0%{opacity:.75;transform:scale(1)}50%{opacity:.45;transform:scale(1.12)}100%{opacity:.75;transform:scale(1)}}
+.ab-brilhos i{position:absolute;bottom:-10px;width:var(--t);height:var(--t);border-radius:50%;background:#ffe7a3;box-shadow:0 0 8px 2px rgba(255,214,120,.8);animation:abSobe linear infinite}
+@keyframes abSobe{0%{transform:translate(0,0);opacity:0}15%{opacity:1}100%{transform:translate(30px,-105vh);opacity:0}}
+.ab-texto{position:absolute;z-index:1;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 9vh);text-align:center;padding:0 20px}
+.ab-texto::before{content:"";position:absolute;inset:-34vh 0 -14vh;background:linear-gradient(180deg,transparent,rgba(7,6,11,.7) 35%,rgba(7,6,11,.92) 70%);z-index:-1}
+.ab-titulo{font-size:clamp(3.4rem,19vw,6rem);letter-spacing:.14em;margin-right:-.14em;color:#fff6dc;text-shadow:0 0 24px rgba(233,196,106,.85),0 0 60px rgba(233,196,106,.45)}
+.ab-titulo span{display:inline-block;opacity:0;animation:abLetra .9s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes abLetra{from{opacity:0;transform:translateY(24px) scale(1.4);filter:blur(10px)}to{opacity:1;transform:none;filter:none}}
+.ab-sub{margin:6px 0 0;color:#e8dcff;font-size:1.1rem;letter-spacing:.06em;opacity:0;animation:abAparece 1.2s 2.5s forwards}
+.ab-toque{margin:7vh 0 0;color:var(--gold);font-weight:800;letter-spacing:.2em;text-transform:uppercase;font-size:.9rem;opacity:0;animation:abAparece .8s 3.3s forwards,abPisca 1.8s 4.1s ease-in-out infinite}
+@keyframes abPisca{0%,100%{opacity:1}50%{opacity:.35}}
+.abertura.sai{animation:abSai .65s ease-in forwards}
+.abertura.sai .ab-luz{animation:abClarao .65s ease-in forwards}
+@keyframes abClarao{to{opacity:1;transform:scale(9)}}
+@keyframes abSai{60%{opacity:1}to{opacity:0}}
+.box ol{padding-left:22px;margin:8px 0}.box ol li{margin:6px 0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.ab-titulo span,.ab-sub,.ab-toque,.ab-luz{opacity:1!important}.ab-fundo{filter:none!important}}
 </style>
 </head>
 <body>

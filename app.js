@@ -70,7 +70,7 @@ const modelosAtivos = () => S.modelos.filter(m => !m.apagado);
 const premiosAtivos = () => S.premios.filter(x => !x.apagado);
 
 // sessão da tela (não salva)
-const UI = { perfil: null, aba: 'inicio', sub: '', som: false, overlay: null, sync: '', syncErro: '' };
+const UI = { abertura: true, perfil: null, aba: 'inicio', sub: '', som: false, overlay: null, sync: '', syncErro: '' };
 
 // ---------- regras ----------
 function vigor(p) {
@@ -319,7 +319,32 @@ function renderTela() {
 }
 const somBtn = () => `<button class="btn sm" data-a="som" aria-label="Som">${UI.som ? '🔊' : '🔇'}</button>`;
 
+// abertura animada: aparece toda vez que o app abre; o toque liga a música e mostra os perfis
+function renderAbertura() {
+  if ($app.querySelector('.abertura')) return; // não reinicia a animação se a sincronização redesenhar
+  const brilhos = Array.from({ length: 26 }, () => `<i style="left:${Math.random() * 100}%;animation-duration:${6 + Math.random() * 7}s;animation-delay:${-Math.random() * 12}s;--t:${2 + Math.random() * 4}px"></i>`).join('');
+  $app.innerHTML = `<div class="abertura" data-a="comecar">
+    <div class="ab-fundo"></div><div class="ab-raios"></div><div class="ab-luz"></div><div class="ab-brilhos">${brilhos}</div>
+    <div class="ab-texto"><h1 class="ab-titulo">${'VITRAL'.split('').map((l, i) => `<span style="animation-delay:${1.3 + i * .14}s">${l}</span>`).join('')}</h1>
+    <p class="ab-sub">A Bruma e as Sete Moradas</p><p class="ab-toque">Toque para começar</p></div></div>`;
+  // no Safari do iPhone o toque numa área sem botão nem sempre vira clique: escuta o toque direto
+  $app.querySelector('.abertura').addEventListener('pointerup', () => ACOES.comecar());
+}
+
+// ---------- instalar na tela inicial ----------
+let pedidoInstalar = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pedidoInstalar = e; if (!UI.perfil) render(); });
+const instalado = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function passosInstalar() {
+  const ua = navigator.userAgent, ios = /iPhone|iPad|iPod/.test(ua);
+  if (/WhatsApp|Instagram|FBAN|FBAV|Line\//.test(ua)) return `<p>Você abriu o link <b>dentro do ${/Instagram/.test(ua) ? 'Instagram' : /WhatsApp/.test(ua) ? 'WhatsApp' : 'aplicativo'}</b>, e por aqui não dá para instalar.</p><ol><li>Toque em <b>${ios ? 'Compartilhar ⬆️' : '⋮'}</b> no canto da tela.</li><li>Escolha <b>${ios ? 'Abrir no Safari' : 'Abrir no Chrome'}</b> (ou "abrir no navegador").</li><li>Lá, toque de novo em <b>📲 Instalar o app</b>.</li></ol>`;
+  if (ios && /CriOS|FxiOS|EdgiOS/.test(ua)) return `<p>No iPhone, o jeito mais garantido é pelo <b>Safari</b>.</p><ol><li>Toque em <b>Copiar o link</b> aqui embaixo.</li><li>Abra o <b>Safari</b> e cole o link.</li><li>Toque em <b>Compartilhar ⬆️</b> e depois em <b>Adicionar à Tela de Início</b>.</li></ol>`;
+  if (ios) return `<ol><li>Toque em <b>Compartilhar ⬆️</b> (o quadrado com a seta, na barra de baixo do Safari).</li><li>Role a lista e toque em <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>. O ícone do VITRAL aparece na tela do celular.</li></ol>`;
+  return `<ol><li>Toque nos <b>⋮</b> (três pontinhos) no canto de cima do Chrome.</li><li>Toque em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li><li>Confirme em <b>Instalar</b>. O ícone do VITRAL aparece na tela do celular.</li></ol><p class="small muted">Se não aparecer, abra o link no Chrome (e não dentro do WhatsApp).</p>`;
+}
+
 function renderEntrada() {
+  if (UI.abertura) return renderAbertura();
   const ps = Object.values(S.players);
   $app.innerHTML = `<div class="entrada">
     <h1>VITRAL</h1><p class="sub">A Bruma e as Sete Moradas</p>
@@ -327,6 +352,7 @@ function renderEntrada() {
     <button class="perfil" data-a="entrar" data-k="pais"><div class="ava" style="background:var(--gold)">✦</div><div style="flex:1">Pais<div class="muted small">aprovar, acompanhar e lançar missões</div></div>🔒</button>
     <div class="grid2"><button class="btn sm" data-a="som">${UI.som ? '🔊 Som ligado' : '🔇 Ligar o som'}</button>
     <button class="btn sm" data-a="conectarTela">${conectado() ? `${syncDot()} Conectado` : '🔗 Conectar aparelho'}</button></div>
+    ${instalado() ? '' : '<button class="btn gold full" data-a="instalar">📲 Instalar o app</button>'}
     <p class="small muted" style="text-align:center;margin:0">versão ${VERSAO_ASSETS}</p>
   </div>` + (UI.overlay || '');
 }
@@ -680,7 +706,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '14';
+const VERSAO_ASSETS = '15';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -820,6 +846,16 @@ const ACOES = {
     UI.overlay = null; UI.perfil = 'pais'; UI.aba = 'avaliar'; rodadaDiaria(); render();
   },
   sair() { UI.perfil = null; UI.overlay = null; tocar('01-abertura'); render(); },
+  comecar() {
+    const ab = $app.querySelector('.abertura'); if (!ab || ab.classList.contains('sai')) return;
+    UI.som = true; tocar('01-abertura'); ab.classList.add('sai');
+    setTimeout(() => { UI.abertura = false; render(); }, 650);
+  },
+  async instalar() {
+    if (pedidoInstalar) { pedidoInstalar.prompt(); const r = await pedidoInstalar.userChoice; pedidoInstalar = null; if (r.outcome === 'accepted') toast('Pronto! O VITRAL vai aparecer na tela do celular.'); render(); return; }
+    UI.overlay = `<div class="over"><div class="box"><h3>📲 Instalar o VITRAL</h3>${passosInstalar()}<button class="btn" data-a="copiarLink">Copiar o link</button><button class="btn gold" data-a="fechar">Entendi</button></div></div>`; render();
+  },
+  copiarLink() { const u = location.href.split('#')[0]; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Link copiado!'), () => toast(u)); },
   som() { UI.som = !UI.som; if (!UI.som) $mus.pause(); else tocar(UI.perfil && UI.perfil !== 'pais' && UI.aba === 'mapa' ? REINO1.musica : '01-abertura'); render(); },
   aba(k) { UI.aba = k; UI.sub = ''; UI.overlay = null; if (UI.perfil !== 'pais') tocar(k === 'mapa' ? REINO1.musica : k === 'equipe' ? '12-invocacao' : '01-abertura'); render(); window.scrollTo(0, 0); },
   sub(k) { UI.sub = k; render(); },
