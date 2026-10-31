@@ -82,6 +82,8 @@ function revelar() {
     document.getElementById('desp-fim').innerHTML = `<h2 style="text-align:center;margin:0">${d.nome}</h2>
       <p class="small muted" style="text-align:center;margin:0">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo} · ${VIRTUDES[v].nome}</p>
       <p style="text-align:center"><i>“${esc(d.fala)}”</i></p>
+      <label class="sec" for="nick">Seu nick na jornada</label>
+      <input id="nick" maxlength="16" autocomplete="off" placeholder="Como quer ser chamado?" value="${esc(p.nick || '')}">
       <button class="btn gold full" data-a="despFim">Começar a jornada</button>`;
   }, 1500);
 }
@@ -94,5 +96,23 @@ Object.assign(ACOES, {
     SFX.moeda && SFX.moeda(); telaDesperta();
   },
   despGirar() { girarRoleta(); },
-  despFim() { UI.overlay = null; tocar('01-abertura'); render(); },
+  despFim() {
+    const nick = lerNick(); if (!nick) return;
+    const p = pAtual(); p.nick = nick; falaAnjoNick(p); salvar();
+    UI.overlay = null; tocar('01-abertura'); render();
+  },
+  nickTrocar() {
+    UI.overlay = `<div class="over"><div class="box"><h3>Trocar nick</h3><input id="nick" maxlength="16" autocomplete="off" value="${esc(pAtual().nick || '')}">
+      <button class="btn gold" data-a="nickSalvar">Salvar</button><button class="btn sm" data-a="fechar">Cancelar</button></div></div>`;
+    render();
+  },
+  nickSalvar() { const nick = lerNick(); if (!nick) return; pAtual().nick = nick; salvar(); UI.overlay = null; toast('Nick salvo'); render(); },
 });
+
+// nick: até 16 letras/números/espaços, sem nada que vire código na tela
+function lerNick() {
+  const v = (document.getElementById('nick').value || '').replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (v.length < 2) { toast('Escolha um nick com pelo menos 2 letras'); return ''; }
+  return v;
+}
+function falaAnjoNick(p) { p.anjo = ['rindo', `${p.nick}, hein? Gostei. ${DEVOTOS[p.heroi].nome} também. Bora pra cima da Bruma.`]; }

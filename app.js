@@ -277,7 +277,7 @@ function render() {
   const pend = S.missoes.filter(m => m.status === 'enviada').length;
   const topo = pais
     ? `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:var(--gold)">✦</div><div><b>Painel dos pais</b><small>tocar para sair</small></div></button>${syncDot()}${somBtn()}</div>`
-    : `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:${p.cor}">${esc(p.nome[0])}</div><div><b>${esc(p.nome)}</b><small>${RANKS[rankIdx(p.xp)].nome}</small></div></button>
+    : `<div class="top"><button class="who" data-a="sair"><div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div><div><b>${esc(p.nick || p.nome)}</b><small>${RANKS[rankIdx(p.xp)].nome}</small></div></button>
        <div class="res"><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span class="ic-tal">◈${p.talentos}</span></div>${syncDot()}${somBtn()}</div>`;
   const corpo = pais ? telaPais() : telaFilho(p);
   const nav = `<nav class="nav">${abas.map(([k, i, n]) => `<button data-a="aba" data-k="${k}" class="${UI.aba === k ? 'on' : ''}"><span class="i">${i}</span>${n}${pais && k === 'avaliar' && pend ? `<span class="badge">${pend}</span>` : ''}</button>`).join('')}</nav>`;
@@ -289,7 +289,7 @@ function renderEntrada() {
   const ps = Object.values(S.players);
   $app.innerHTML = `<div class="entrada">
     <h1>VITRAL</h1><p class="sub">A Bruma e as Sete Moradas</p>
-    ${ps.map(p => `<button class="perfil" data-a="entrar" data-k="${p.id}"><div class="ava" style="background:${p.cor}">${esc(p.nome[0])}</div><div style="flex:1">${esc(p.nome)}<div class="muted small">${RANKS[rankIdx(p.xp)].nome} · 🔥${p.chama}</div></div>›</button>`).join('')}
+    ${ps.map(p => `<button class="perfil" data-a="entrar" data-k="${p.id}"><div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div><div style="flex:1">${esc(p.nick || p.nome)}<div class="muted small">${p.nick ? esc(p.nome) + ' · ' : ''}${RANKS[rankIdx(p.xp)].nome} · 🔥${p.chama}</div></div>›</button>`).join('')}
     <button class="perfil" data-a="entrar" data-k="pais"><div class="ava" style="background:var(--gold)">✦</div><div style="flex:1">Pais<div class="muted small">aprovar, acompanhar e lançar missões</div></div>🔒</button>
     <div class="grid2"><button class="btn sm" data-a="som">${UI.som ? '🔊 Som ligado' : '🔇 Ligar o som'}</button>
     <button class="btn sm" data-a="conectarTela">${conectado() ? `${syncDot()} Conectado` : '🔗 Conectar aparelho'}</button></div>
@@ -374,7 +374,7 @@ function telaEquipe(p) {
   const meus = Object.keys(p.devotos);
   return `<div class="card"><div class="row between"><div><span class="sec">Invocação</span><p class="small muted">${CUSTO_INVOCACAO} ✦ por invocação · 5★ garantido em até ${PITY_5} (faltam ${PITY_5 - p.pity})</p></div>
     <button class="btn gold" data-a="invocar" ${p.lumens < CUSTO_INVOCACAO ? 'disabled' : ''}>Invocar</button></div></div>
-    <p class="small muted">Toque num devoto para ver os poderes e upar. Seu herói caminha com você; os outros são Aliados.</p>
+    <div class="row between"><p class="small muted" style="margin:0">Toque num devoto para ver os poderes e upar. Seu herói caminha com você; os outros são Aliados.</p><button class="btn sm" data-a="nickTrocar">✎ Nick</button></div>
     <div class="devs">${meus.sort((a, b) => (b === p.heroi) - (a === p.heroi)).map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${k === p.heroi ? '<span class="eq">HERÓI</span>' : '<span class="eq" style="background:#2b2540;color:var(--muted)">ALIADO</span>'}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
     <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>`;
 }
@@ -428,6 +428,7 @@ function paisJogo() {
     const ri = rankIdx(p.xp);
     const ev = S.eventos.filter(e => e.pid === p.id).slice(0, 6);
     return `<div class="card"><div class="row between"><h3>${esc(p.nome)}</h3><span class="pill" style="color:var(--gold)">${RANKS[ri].nome}</span></div>
+      <p class="small muted" style="margin:0">${p.heroi ? `Nick “${esc(p.nick || '-')}” · herói ${DEVOTOS[p.heroi].nome}` : 'Ainda não fez o Despertar'}</p>
       <table class="tabela"><tr><th>XP</th><td>${p.xp}</td><th>Semana</th><td>${r(p.xpSemana / S.config.metaSemanal * 100)}%</td></tr>
       <tr><th>Reino I</th><td>${Math.min(p.reino.no, REINO1.nos.length)}/${REINO1.nos.length}</td><th>Devotos</th><td>${Object.keys(p.devotos).length}/14</td></tr>
       <tr><th>Chama</th><td>${p.chama}</td><th>Lumens</th><td>${p.lumens}</td></tr>
