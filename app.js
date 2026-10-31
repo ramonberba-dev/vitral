@@ -393,6 +393,7 @@ function telaEquipe(p) {
     <button class="btn gold" data-a="invocar" ${p.lumens < CUSTO_INVOCACAO ? 'disabled' : ''}>Invocar</button></div></div>
     <div class="row between"><p class="small muted" style="margin:0">Toque num devoto para ver os poderes e upar. Seu herói caminha com você; os outros são Aliados.</p><button class="btn sm" data-a="nickTrocar">✎ Nick</button></div>
     <div class="devs">${meus.sort((a, b) => (b === p.heroi) - (a === p.heroi)).map(k => { const d = DEVOTOS[k], st = p.devotos[k]; return `<button class="dev" data-a="dev" data-k="${k}" style="border-color:${VIRTUDES[d.v].cor}">${k === p.heroi ? '<span class="eq">HERÓI</span>' : '<span class="eq" style="background:#2b2540;color:var(--muted)">ALIADO</span>'}${img(devImg(k), d.nome)}<div class="n"><span>${d.nome}</span><span class="est">Nv${st.lvl}</span></div></button>`; }).join('')}</div>
+    ${p.heroi ? telaDeck(p) : ''}
     <div class="card"><span class="sec">Fragmentos</span><div class="row wrap">${Object.entries(p.frag).map(([v, n]) => `<span class="pill" style="color:${VIRTUDES[v].cor}">${VIRTUDES[v].nome} ${n}</span>`).join('')}</div></div>
     <button class="btn sm bad" data-a="recomecar">↺ Recomeçar a jornada</button>`;
 }
@@ -512,7 +513,7 @@ function invocar(p) {
   if (cinco) p.pity = 0;
   let extra;
   if (p.devotos[k]) { p.devotos[k].dup++; p.frag[d.v] += 5; extra = `Repetido: +5 Fragmentos de ${VIRTUDES[d.v].nome}`; }
-  else { p.devotos[k] = { lvl: 1, dup: 0 }; extra = 'Novo Aliado!'; }
+  else { p.devotos[k] = { lvl: 1, dup: 0 }; darCarta(p, 'ali:' + k, false); extra = 'Novo Aliado! A carta dele entrou no seu deck.'; }
   evento(p.id, `Invocou ${d.nome} ${estrelas(d.est)}`);
   salvar(); tocar('12-invocacao'); cinco ? SFX.fanfarra() : SFX.moeda();
   UI.overlay = `<div class="over" data-a="fechar"><div class="box revela">${img(devImg(k), d.nome)}<div class="est" style="font-size:1.4rem">${estrelas(d.est)}</div><h2>${d.nome}</h2><p class="muted">${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}</p><p><i>“${esc(d.fala)}”</i></p><p class="small" style="color:var(--gold)">${extra}</p><button class="btn gold">Fechar</button></div></div>`;
@@ -528,7 +529,44 @@ function ganharXpHeroi(p, n) {
     const antes = estagio(st.lvl - 1), agora = estagio(st.lvl);
     evento(p.id, agora !== antes ? `${DEVOTOS[p.heroi].nome} virou ${agora.nome} (Nv ${st.lvl})!` : `${DEVOTOS[p.heroi].nome} subiu para o Nv ${st.lvl}`);
     p.subiu = st.lvl; // a tela de pontos avisa na próxima vez
+    (CARTAS_POR_NIVEL[st.lvl] || []).forEach(id => darCarta(p, id));
   }
+}
+// ---------- cartas de poder ----------
+// id 'ali:<devoto>' é a carta de um Aliado: ele entra na luta e usa o Dom dele
+function cartaInfo(p, id) {
+  const usos = (p.cartas?.[id]?.usos) || 0, nv = nivelCarta(usos), up = 1 + 0.15 * (nv - 1);
+  if (id.startsWith('ali:')) {
+    const k = id.slice(4), d = DEVOTOS[k];
+    return { id, nome: d.nome, ic: '🤝', ef: d.dom[1], mult: up, txt: `Aliado: ${d.dom[0]}`, aliado: k, nv, usos };
+  }
+  const c = CARTAS[id]; return { id, ...c, mult: c.mult * up, nv, usos };
+}
+function darCarta(p, id, avisar = true) {
+  p.cartas = p.cartas || {}; p.deck = p.deck || [];
+  if (p.cartas[id]) return;
+  p.cartas[id] = { usos: 0 };
+  if (p.deck.length < DECK_MAX) p.deck.push(id);
+  const c = cartaInfo(p, id);
+  evento(p.id, `Carta nova: ${c.nome}`);
+  if (avisar) { toast(`🃏 Carta nova: ${c.nome}`); SFX.fanfarra(); }
+}
+// garante as cartas que o herói já devia ter (nível alcançado e Aliados), também para quem jogava antes
+function garantirCartas(p) {
+  if (!p.heroi) return;
+  const nv = nivelHeroi(p);
+  Object.entries(CARTAS_POR_NIVEL).forEach(([n, ids]) => { if (nv >= +n) ids.forEach(id => darCarta(p, id, false)); });
+  Object.keys(p.devotos).forEach(k => { if (k !== p.heroi) darCarta(p, 'ali:' + k, false); });
+  if (p.reino.lendas.length) darCarta(p, 'anjo', false);
+}
+const cartaHtml = (c, extra = '') => `<span class="ic">${c.ic}</span><span class="cn"><b>${esc(c.nome)}</b><small>${esc(c.txt)}</small></span><span class="cv">Nv${c.nv}</span>${extra}`;
+function telaDeck(p) {
+  const todas = Object.keys(p.cartas || {}), deck = p.deck || [];
+  const prox = Object.entries(CARTAS_POR_NIVEL).find(([n]) => +n > nivelHeroi(p));
+  return `<div class="card"><div class="row between"><span class="sec">Deck de cartas · ${deck.length}/${DECK_MAX}</span></div>
+    <p class="small muted" style="margin:0">Na batalha, cada carta vale uma vez. Toque para tirar ou pôr no deck. Usar bastante sobe o nível da carta.</p>
+    <div class="cartas">${todas.map(id => { const c = cartaInfo(p, id), on = deck.includes(id); return `<button class="carta ${on ? 'on' : ''}" data-a="deckTroca" data-k="${id}">${cartaHtml(c, `<span class="cd">${on ? 'NO DECK' : 'fora'}</span>`)}</button>`; }).join('')}</div>
+    ${prox ? `<p class="small muted" style="margin:0">Próxima carta no Nv ${prox[0]}: ${CARTAS[prox[1][0]].nome}</p>` : ''}</div>`;
 }
 function telaBarras(p, titulo) {
   const k = p.heroi, nv = nivelHeroi(p), b = p.barras || {};
@@ -582,7 +620,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '9';
+const VERSAO_ASSETS = '10';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -636,6 +674,21 @@ window.VJ = {
   video: (nome, depois) => tocarVideo(nome, depois),
   sair: () => fecharJogo(),
   // a batalha precisa parar: scene.start pelo jogo não fecha a cena que estava rodando
+  // cartas na batalha: a lista do deck, a bandeja para escolher (HTML por cima do jogo) e o contador de uso
+  cartas: () => { const p = pAtual(); return (p.deck || []).filter(id => p.cartas?.[id]).map(id => cartaInfo(p, id)); },
+  escolherCarta: lista => new Promise(ok => {
+    UI.cartaEscolhida = ok;
+    UI.overlay = `<div class="over"><div class="box"><span class="sec">Suas cartas</span>
+      <div class="cartas">${lista.map(c => `<button class="carta on" data-a="cartaUsar" data-k="${c.id}">${cartaHtml(c)}</button>`).join('')}</div>
+      <button class="btn sm" data-a="cartaUsar" data-k="">Voltar</button></div></div>`;
+    render();
+  }),
+  usouCarta: id => {
+    const p = pAtual(), c = p.cartas[id]; if (!c) return;
+    const antes = nivelCarta(c.usos); c.usos++;
+    if (nivelCarta(c.usos) > antes) toast(`🃏 ${cartaInfo(p, id).nome} subiu para Nv${nivelCarta(c.usos)}!`);
+    salvar();
+  },
   voltarMapa: () => {
     hudJogo(); if (!JOGO) return; JOGO.scene.stop('batalha'); JOGO.scene.start('explorar');
     const p = pAtual(); if (p.pontos > 0 && p.ganhouAgora) { p.ganhouAgora = false; abrirBarras(p); }
@@ -655,7 +708,7 @@ window.VJ = {
     p.chama--; salvar(); hudJogo();
     if (n.t === 'historia') {
       mostrarHistoria(n, () => {
-        if (n.ganha && !p.devotos[n.ganha]) { p.devotos[n.ganha] = { lvl: 1, dup: 0 }; toast(`${DEVOTOS[n.ganha].nome} virou seu Aliado!`); SFX.fanfarra(); }
+        if (n.ganha && !p.devotos[n.ganha]) { p.devotos[n.ganha] = { lvl: 1, dup: 0 }; darCarta(p, 'ali:' + n.ganha, false); toast(`${DEVOTOS[n.ganha].nome} virou seu Aliado! Carta nova no deck`); SFX.fanfarra(); }
         p.reino.no++; salvar(); hudJogo(); JOGO && JOGO.scene.start('explorar');
       });
       return { tipo: 'historia' };
@@ -669,7 +722,7 @@ window.VJ = {
     const p = pAtual(); p.lumens += 3; falaAnjo(p, 'vitoria');
     let texto = '+3 Lumens', video = null;
     if (no.t === 'chefe') {
-      p.reino.lendas.push(no.lenda); p.lumens += 20; video = 'vitoria-r1';
+      p.reino.lendas.push(no.lenda); p.lumens += 20; video = 'vitoria-r1'; darCarta(p, 'anjo');
       texto = `As Colinas Brancas estão livres!\nLenda desbloqueada: ${no.lenda}\n+23 Lumens`;
       evento(p.id, `Libertou as Colinas Brancas: Lenda ${no.lenda}`);
     } else evento(p.id, `Venceu: ${no.titulo}`);
@@ -691,6 +744,7 @@ const ACOES = {
       return render();
     }
     UI.perfil = k; UI.aba = 'inicio'; UI.sub = ''; rodadaDiaria(); tocar('01-abertura'); render();
+    garantirCartas(S.players[k]);
     if (!S.players[k].heroi) abrirDesperta();
     else if (S.players[k].subiu && S.players[k].pontos > 0) abrirBarras(S.players[k]); // subiu de nível com missão aprovada
   },
@@ -799,7 +853,7 @@ const ACOES = {
   },
   recomecarSim() {
     const p = pAtual();
-    Object.assign(p, { heroi: null, devotos: {}, equipe: [], barras: {}, pontos: 0, hxp: 0, subiu: 0, ganhouAgora: false,
+    Object.assign(p, { heroi: null, devotos: {}, equipe: [], barras: {}, pontos: 0, hxp: 0, subiu: 0, ganhouAgora: false, cartas: {}, deck: [],
       reino: { no: 0, lendas: [] }, lumens: 20, pity: 0, prologo: false });
     evento(p.id, 'Recomeçou a jornada'); salvar(); UI.overlay = null; render(); abrirDesperta();
   },
@@ -811,6 +865,14 @@ const ACOES = {
     render();
   },
   barrasAbrir() { abrirBarras(pAtual()); },
+  deckTroca(id) {
+    const p = pAtual();
+    if (p.deck.includes(id)) p.deck = p.deck.filter(x => x !== id);
+    else if (p.deck.length >= DECK_MAX) return toast(`Deck cheio: tire uma carta antes (máximo ${DECK_MAX})`);
+    else p.deck.push(id);
+    salvar(); render();
+  },
+  cartaUsar(id) { const fn = UI.cartaEscolhida; UI.cartaEscolhida = null; UI.overlay = null; render(); fn && fn(id || null); },
   resetarSim() { S = estadoInicial(); localSalvar(); UI.overlay = null; UI.perfil = null; render(); },
   conectarTela() {
     UI.overlay = `<div class="over"><div class="box"><h3>🔗 Conectar este aparelho</h3>

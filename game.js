@@ -76,6 +76,7 @@ class Batalha extends Phaser.Scene {
     this.faiscas = this.add.particles(0, 0, 'ponto', { speed: { min: 80, max: 260 }, scale: { start: 0.7, end: 0 }, lifespan: 520, emitting: false, blendMode: 'ADD' }).setDepth(30);
 
     // aliados
+    this.usadas = new Set();
     const xs = [62, 150, 240, 328];
     this.aliados = p.equipe.filter(k => p.devotos[k]).slice(0, 4).map((k, i) => {
       const d = VJ.DEVOTOS[k], s = VJ.stats(k, p.devotos[k].lvl);
@@ -140,9 +141,10 @@ class Batalha extends Phaser.Scene {
     this.bSup = mk(320, 118, '💥 Supremo', 0xe9c46a, () => this.agir('sup'));
     this.bPil = mk(330, 112, '💊', 0x2c2540, () => this.pilula()); this.bPil.y = 735; this.bPil.setSize(54, 40); this.bPil.w = 54; this.bPil.x = 360;
     this.bSair = mk(30, 54, '🏳', 0x2c2540, () => window.VJ.sair()); this.bSair.y = 40; this.bSair.setSize(44, 40); this.bSair.w = 44;
+    this.bCar = mk(66, 112, '🃏', 0x4a2f7a, () => this.abrirCartas()); this.bCar.y = 735; this.bCar.setSize(112, 40); this.bCar.w = 112;
   }
   desenharBotao(b, ativo, rot) {
-    b.ativo = ativo; const h = b === this.bPil || b === this.bSair ? 40 : 52;
+    b.ativo = ativo; const h = b === this.bPil || b === this.bSair || b === this.bCar ? 40 : 52;
     b.bg.clear().fillStyle(b.cor, ativo ? 1 : 0.35).fillRoundedRect(-b.w / 2, -h / 2, b.w, h, 12).lineStyle(2, 0xffffff, ativo ? 0.25 : 0.08).strokeRoundedRect(-b.w / 2, -h / 2, b.w, h, 12);
     if (rot) b.t.setText(rot); b.t.setAlpha(ativo ? 1 : 0.5);
   }
@@ -164,7 +166,9 @@ class Batalha extends Phaser.Scene {
     const alvo = this.inimigos[this.alvoI];
     if (alvo && alvo.hp > 0) this.mira.setPosition(alvo.base.x, alvo.spr.y - alvo.spr.displayHeight - 14).setVisible(!this.fim); else this.mira.setVisible(false);
     if (a && !this.fim) { this.brilho.setPosition(a.base.x, a.base.y).setVisible(true); } else this.brilho.setVisible(false);
-    if (!a || this.fim) { [this.bAtk, this.bDom, this.bSup, this.bPil].forEach(b => b.setVisible(false)); return; }
+    if (!a || this.fim) { [this.bAtk, this.bDom, this.bSup, this.bPil, this.bCar].forEach(b => b.setVisible(false)); return; }
+    const nCartas = this.cartasLivres().length;
+    this.desenharBotao(this.bCar, livre && nCartas > 0, `🃏 Cartas ${nCartas}`);
     this.desenharBotao(this.bAtk, livre, '⚔ Ataque');
     this.desenharBotao(this.bDom, livre && !a.cd, a.cd ? `✨ ${a.cd}` : `✨ ${a.d.dom[0]}`);
     this.desenharBotao(this.bSup, livre && a.carga >= 100, a.carga >= 100 ? '💥 SUPREMO' : `💥 ${a.carga}%`);
@@ -266,7 +270,8 @@ class Batalha extends Phaser.Scene {
   async efeito(a, ef, forte) {
     const vivos = this.inimigos.filter(f => f.hp > 0), al = this.aliados.filter(x => x.hp > 0), alvo = this.inimigos[this.alvoI];
     if (ef === 'sorte') ef = sorteia(['dano', 'cura', 'buff', 'escudo']);
-    const pd = 1 + (a.dom || 0) / 100; // barra de Dom (Código, Oração, Luz…) fortalece Dom e Supremo
+    // barra de Dom (Código, Oração, Luz…) fortalece Dom e Supremo; a.extra vem das cartas
+    const pd = (1 + (a.dom || 0) / 100) * (a.extra || 1);
     if (ef === 'dano') return this.golpe(a, alvo, (forte ? 3 : 1.8) * pd);
     if (ef === 'atordoa') {
       if (forte) { for (const f of vivos) { this.impacto(f, Math.round(a.atk * 1.2 * pd), COR_V[a.d.v]); f.stun = 1; this.estrelas(f); } return; }
@@ -365,6 +370,46 @@ class Batalha extends Phaser.Scene {
       this.desenhar();
       if (await this.checarFim()) return;
     }
+  }
+  // ---- cartas de poder (cada uma uma vez por batalha) ----
+  cartasLivres() { return (window.VJ.cartas ? window.VJ.cartas() : []).filter(c => !this.usadas.has(c.id)); }
+  async abrirCartas() {
+    this.ocupado = true; this.desenhar();
+    const id = await window.VJ.escolherCarta(this.cartasLivres());
+    const c = id && this.cartasLivres().find(x => x.id === id);
+    if (!c) { this.ocupado = false; this.desenhar(); return; }
+    await this.usarCarta(c);
+  }
+  async usarCarta(c) {
+    const a = this.aliados[this.vez], VJ = window.VJ;
+    this.usadas.add(c.id); VJ.usouCarta(c.id);
+    if (this.inimigos[this.alvoI]?.hp <= 0) this.alvoI = this.inimigos.findIndex(f => f.hp > 0);
+    if (c.aliado) await this.chamarAliado(a, c);
+    else {
+      await this.cutin(a, `${c.ic} ${c.nome}`, c.ef === 'anjo'); this.falar(`${a.d.nome} usa ${c.nome}!`);
+      a.extra = c.mult;
+      if (c.ef === 'agua') {
+        // água benta: todos os inimigos, e as Cópias cinzentas se desfazem com dano triplo
+        for (const f of this.inimigos.filter(x => x.hp > 0)) this.impacto(f, Math.round(a.atk * 0.8 * c.mult * (f.copia ? 3 : 1)), 0x9cd0ff, f.copia);
+      } else if (c.ef === 'anjo') {
+        this.cameras.main.flash(400, 255, 255, 255); this.falar('Seu Anjo da Guarda desce com a espada!');
+        await this.golpe(a, this.inimigos[this.alvoI], c.mult);
+      } else await this.efeito(a, c.ef, false);
+      a.extra = 1;
+    }
+    this.desenhar();
+    if (await this.checarFim()) return;
+    await this.proximo();
+  }
+  // o Aliado entra ao lado do herói, usa o Dom dele e vai embora
+  async chamarAliado(a, c) {
+    const VJ = window.VJ, d = VJ.DEVOTOS[c.aliado], base = { x: Math.min(LARG - 50, a.base.x + 110), y: a.base.y };
+    const spr = this.add.image(base.x, base.y + 220, 'd-' + c.aliado).setOrigin(0.5, 1).setScale(0.36).setDepth(9);
+    await tw(this, { targets: spr, y: base.y, duration: 380, ease: 'Back.out' });
+    const al = { k: c.aliado, d, spr, base, atk: Math.round(a.atk * 0.9), dom: a.dom, crit: a.crit, extra: c.mult };
+    await this.cutin(al, d.dom[0], false); this.falar(`${d.nome} chegou: ${d.dom[0]}!`);
+    await this.efeito(al, d.dom[1], false);
+    await tw(this, { targets: spr, alpha: 0, y: base.y + 40, duration: 350 }); spr.destroy();
   }
   pilula() {
     const VJ = window.VJ, p = VJ.p(), a = this.aliados[this.vez]; if (p.pilulas < 1) return;

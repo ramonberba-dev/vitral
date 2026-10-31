@@ -76,6 +76,7 @@ function revelar() {
   p.heroi = k;
   p.devotos[k] = p.devotos[k] || { lvl: 1, dup: 0 };
   p.equipe = [k];
+  garantirCartas(p);
   evento(p.id, `Despertou com ${d.nome}, ${FEM.has(k) ? 'devota' : 'devoto'} de ${d.santo}`);
   salvar();
   setTimeout(() => {

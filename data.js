@@ -55,6 +55,22 @@ const BARRAS = {
   luzia: [['forca', 'Força', 'ataque'], ['coragem', 'Coragem', 'defesa'], ['visao', 'Visão', 'critico']],
   tonho: [['palavra', 'Palavra', 'ataque'], ['achado', 'Achado', 'critico'], ['pao', 'Pão', 'dom']],
 };
+// Cartas de poder: o herói leva até DECK_MAX para a luta e cada uma vale uma vez por batalha.
+// ef: dano | cura | escudo | area | buff | agua (forte contra Cópias) | anjo; mult multiplica o efeito.
+// Com o uso, a carta sobe de nível (+15% por nível).
+const DECK_MAX = 6;
+const CARTAS = {
+  luz:    { nome: 'Golpe de Luz',      ic: '✦',  ef: 'dano',   mult: 1,   txt: 'Golpe forte num inimigo' },
+  oracao: { nome: 'Oração Rápida',     ic: '🙏', ef: 'cura',   mult: 1.1, txt: 'Recupera a vida' },
+  escudo: { nome: 'Escudo da Fé',      ic: '🛡', ef: 'escudo', mult: 1.3, txt: 'Escudo que segura os golpes (Ef 6,16)' },
+  chama:  { nome: 'Chama do Espírito', ic: '🔥', ef: 'area',   mult: 1.2, txt: 'Fogo em todos os inimigos' },
+  bencao: { nome: 'Bênção',            ic: '✨', ef: 'buff',   mult: 1,   txt: '+30% de dano por 2 turnos' },
+  agua:   { nome: 'Água Benta',        ic: '💧', ef: 'agua',   mult: 1.2, txt: 'Atinge todos; dano triplo nas Cópias cinzentas' },
+  anjo:   { nome: 'Santo Anjo',        ic: '🪽', ef: 'anjo',   mult: 2.4, txt: 'Seu Anjo da Guarda desce com a espada' },
+};
+const CARTAS_POR_NIVEL = { 1: ['luz', 'oracao'], 3: ['escudo'], 5: ['chama'], 8: ['bencao'], 12: ['agua'] };
+const nivelCarta = usos => usos >= 20 ? 3 : usos >= 8 ? 2 : 1;
+
 const barrasDe = k => [['vida', 'Vida', 'vida'], ...(BARRAS[k] || [['forca', 'Força', 'ataque'], ['defesa', 'Defesa', 'defesa'], ['foco', 'Foco', 'critico']])];
 
 // Duas virtudes seguidas no mesmo turno disparam um combo
