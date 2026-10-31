@@ -64,6 +64,8 @@ function salvar() {
   if (p) { p.upd = Date.now(); marcar('players', p.id); }
   localSalvar(); agendarSync();
 }
+const CORES_JOG = ['#5aa9e6', '#f08a3c', '#5fd39a', '#e5546b', '#a77bf3', '#e9c46a'];
+const jogadores = () => Object.values(S.players).filter(p => !p.apagado);
 function aplicarNomes() { Object.values(S.players).forEach(p => { if (S.config.nomes[p.id]) p.nome = S.config.nomes[p.id]; }); }
 aplicarNomes();
 const modelosAtivos = () => S.modelos.filter(m => !m.apagado);
@@ -101,7 +103,7 @@ function rodadaDiaria() {
   const p = UI.perfil && UI.perfil !== 'pais' ? S.players[UI.perfil] : null;
   if (p) {
     if (p.semana !== sem) {
-      const outro = Object.values(S.players).find(x => x !== p);
+      const outro = jogadores().find(x => x !== p);
       const meu = p.xpSemana / S.config.metaSemanal, dele = outro && outro.semana === p.semana ? outro.xpSemana / S.config.metaSemanal : 0;
       if (p.xpSemana > 0 && meu > dele) { darTalentos(p, 5); evento(p.id, 'Venceu o Torneio da Semana: Coroa + 5 Talentos'); }
       p.xpSemana = 0; p.semana = sem;
@@ -362,10 +364,11 @@ function passosInstalar() {
 
 function renderEntrada() {
   if (UI.abertura) return renderAbertura();
-  const ps = Object.values(S.players);
+  const ps = jogadores();
   $app.innerHTML = `<div class="entrada">
     <h1>VITRAL</h1><p class="sub">A Bruma e as Sete Moradas</p>
     ${ps.map(p => `<button class="perfil" data-a="entrar" data-k="${p.id}"><div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div><div style="flex:1">${esc(p.nick || p.nome)}<div class="muted small">${p.nick ? esc(p.nome) + ' · ' : ''}${RANKS[rankIdx(p.xp)].nome} · 🔥${p.chama}</div></div>›</button>`).join('')}
+    <button class="perfil novo" data-a="addJogador"><div class="ava">+</div><div style="flex:1">Adicionar jogador<div class="muted small">um amigo para jogar junto</div></div>›</button>
     <button class="perfil" data-a="entrar" data-k="pais"><div class="ava" style="background:var(--gold)">✦</div><div style="flex:1">Pais<div class="muted small">aprovar, acompanhar e lançar missões</div></div>🔒</button>
     <div class="grid2"><button class="btn sm" data-a="som">${UI.som ? '🔊 Som ligado' : '🔇 Ligar o som'}</button>
     <button class="btn sm" data-a="conectarTela">${conectado() ? `${syncDot()} Conectado` : '🔗 Conectar aparelho'}</button></div>
@@ -387,7 +390,7 @@ function telaInicio(p) {
   const pctRank = prox ? (p.xp - RANKS[ri].xp) / (prox.xp - RANKS[ri].xp) * 100 : 100;
   const vg = vigor(p), lv = larvasAtivas(p.id);
   const abertas = S.missoes.filter(m => m.pid === p.id && (m.status === 'aberta' || m.status === 'refazer'));
-  const ps = Object.values(S.players);
+  const ps = jogadores();
   const fam = ps.reduce((s, x) => s + x.xp, 0) - S.config.xpFamiliaBase;
   const graca = p.gracaDia !== hoje();
   return `
@@ -481,10 +484,17 @@ function telaPais() {
   if (UI.aba === 'mais') return paisMais();
   return paisAvaliar();
 }
+// filhos com o botão de recomeçar sempre à mão (topo da aba Avaliar)
+function filhosRapido() {
+  return `<div class="card filhos"><span class="sec">Jogadores</span>${jogadores().map(p => `<div class="filho">
+    <div class="ava" style="background:${p.cor}">${esc((p.nick || p.nome)[0])}</div>
+    <div style="flex:1;min-width:0"><b>${esc(p.nome)}</b><small>${p.heroi ? `${esc(p.nick || '-')} · ${DEVOTOS[p.heroi].nome}` : 'ainda sem herói'}</small></div>
+    <button class="btn sm bad" data-a="recomecarPais" data-k="${p.id}">↺ Resetar</button></div>`).join('')}</div>`;
+}
 function paisAvaliar() {
   const fila = S.missoes.filter(m => m.status === 'enviada').sort((a, b) => a.enviadaEm - b.enviadaEm);
-  if (!fila.length) return `<div class="card"><h3>Nada para avaliar</h3><p class="muted">Quando eles mandarem fotos, elas aparecem aqui. Avaliar no mesmo dia mantém a motivação.</p></div>`;
-  return fila.map(m => { const p = S.players[m.pid]; return `<div class="card">
+  if (!fila.length) return filhosRapido() + `<div class="card"><h3>Nada para avaliar</h3><p class="muted">Quando eles mandarem fotos, elas aparecem aqui. Avaliar no mesmo dia mantém a motivação.</p></div>`;
+  return filhosRapido() + fila.map(m => { const p = S.players[m.pid]; return `<div class="card">
     <div class="row between"><b>${esc(p.nome)}</b><span class="muted small">${fmtData(m.data)}</span></div>
     ${missaoLinha(m, m.secreta ? '<span class="st enviada">secreta</span>' : m.reparo ? '<span class="st enviada">reparo</span>' : '')}
     ${fotoSrc(m) ? `<img class="foto" src="${fotoSrc(m)}" alt="Foto da missão">` : '<p class="muted small">Carregando a foto…</p>'}
@@ -495,7 +505,7 @@ function paisAvaliar() {
 }
 function paisRotina() {
   const d = hoje();
-  return Object.values(S.players).map(p => {
+  return jogadores().map(p => {
     const doDia = S.missoes.filter(m => m.pid === p.id && m.data === d);
     const dias = [...Array(7)].map((_, i) => { const dt = hoje(new Date(Date.now() - (6 - i) * DIA)); const n = S.missoes.filter(m => m.pid === p.id && m.status === 'aprovada' && hoje(new Date(m.avaliadaEm)) === dt).length; return `<div class="${n ? 'ok' : ''}"><b>${n}</b>${['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(dt + 'T12:00').getDay()]}</div>`; }).join('');
     return `<div class="card"><div class="row between"><h3>${esc(p.nome)}</h3><span class="small muted">🔥 sequência ${p.streak} dia${p.streak === 1 ? '' : 's'}</span></div>
@@ -533,10 +543,10 @@ function recomecarJornada(p) {
   evento(p.id, 'Recomeçou a jornada');
 }
 function paisJogo() {
-  return Object.values(S.players).map(p => {
+  return jogadores().map(p => {
     const ri = rankIdx(p.xp);
     const ev = S.eventos.filter(e => e.pid === p.id).slice(0, 6);
-    return `<div class="card"><div class="row between"><h3>${esc(p.nome)}</h3><span class="pill" style="color:var(--gold)">${RANKS[ri].nome}</span></div>
+    return `<div class="card"><div class="row between"><h3>${esc(p.nome)}</h3><div class="row"><span class="pill" style="color:var(--gold)">${RANKS[ri].nome}</span><button class="btn sm bad" data-a="recomecarPais" data-k="${p.id}">↺ Resetar</button></div></div>
       <p class="small muted" style="margin:0">${p.heroi ? `Nick “${esc(p.nick || '-')}” · herói ${DEVOTOS[p.heroi].nome}` : 'Ainda não fez o Despertar'}</p>
       <table class="tabela"><tr><th>XP</th><td>${p.xp}</td><th>Semana</th><td>${r(p.xpSemana / S.config.metaSemanal * 100)}%</td></tr>
       <tr><th>Reino I</th><td>${Math.min(p.reino.no, REINO1.nos.length)}/${REINO1.nos.length}</td><th>Devotos</th><td>${Object.keys(p.devotos).length}/14</td></tr>
@@ -544,17 +554,16 @@ function paisJogo() {
       <tr><th>Talentos</th><td>${p.talentos}${p.congelados ? ` (+${p.congelados} ❄️)` : ''}</td><th>Vigor</th><td>${vigor(p)}%</td></tr></table>
       <p class="small muted">Time: ${p.equipe.map(k => DEVOTOS[k].nome).join(', ')}</p>
       <span class="sec">Últimos acontecimentos</span>${ev.map(e => `<p class="small">• ${esc(e.txt)} <span class="muted">${fmtData(hoje(new Date(e.em)))}</span></p>`).join('') || '<p class="muted small">Nada ainda.</p>'}
-      <button class="btn sm" data-a="bonus" data-k="${p.id}">🎁 Dar 3 Chamas de bônus (destravar)</button>
-      <button class="btn sm bad" data-a="recomecarPais" data-k="${p.id}">↺ Recomeçar a jornada de ${esc(p.nome)}</button></div>`;
+      <button class="btn sm" data-a="bonus" data-k="${p.id}">🎁 Dar 3 Chamas de bônus (destravar)</button></div>`;
   }).join('');
 }
 function formMissao() {
-  const ps = Object.values(S.players);
+  const ps = jogadores();
   return `<div class="card"><h3>Nova missão</h3>
     <input id="nm-titulo" placeholder="O que fazer? Ex.: Estudar 1h para a prova">
     <div class="grid2"><select id="nm-tipo">${Object.entries(TIPOS).map(([k, t]) => `<option value="${k}">${t.nome} (${t.xp} XP${t.tal ? `, ${t.tal} ◈` : ''})</option>`).join('')}</select>
     <select id="nm-v">${Object.entries(VIRTUDES).map(([k, v]) => `<option value="${k}">${v.nome}</option>`).join('')}</select></div>
-    <div class="grid2"><select id="nm-para"><option value="ab">Os dois</option>${ps.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
+    <div class="grid2"><select id="nm-para"><option value="ab">Todos</option>${ps.map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select>
     <select id="nm-rec"><option value="extra">Extra (só uma vez, hoje)</option><option value="diaria">Recorrente: todo dia</option><option value="semanal">Recorrente: toda semana</option></select></div>
     <button class="btn gold" data-a="criarMissao">Lançar missão</button></div>`;
 }
@@ -567,7 +576,7 @@ function paisMissoes() {
     <div class="card"><span class="sec">Extras em aberto</span>${extras.map(m => missaoLinha(m, `<span class="small muted">${esc(S.players[m.pid].nome)}</span>`)).join('') || '<p class="muted small">Nenhuma extra em aberto.</p>'}</div>`;
 }
 function paisMais() {
-  const ps = Object.values(S.players);
+  const ps = jogadores();
   const pend = S.resgates.filter(x => x.status === 'pedido');
   const emit = ps.reduce((s, p) => s + ((p.emitidos || {})[mesAtual()] || 0), 0);
   return `<div class="card"><h3>Registrar</h3>
@@ -581,7 +590,7 @@ function paisMais() {
       <input id="pr-nome" placeholder="Novo prêmio (ex.: Pix de R$ 10)"><div class="grid2"><select id="pr-tipo"><option value="pix">Pix</option><option value="privilegio">Privilégio</option><option value="experiencia">Experiência</option><option value="objeto">Objeto</option></select><input id="pr-custo" type="number" min="1" placeholder="Custo em ◈"></div>
       <button class="btn" data-a="criarPremio">Adicionar prêmio</button></div>
     <div class="card"><h3>Ajustes</h3>
-      ${ps.map(p => `<label class="small muted">Nome de ${p.id === 'a' ? 'um filho' : 'outro filho'}<input id="aj-n-${p.id}" value="${esc(p.nome)}"></label>`).join('')}
+      ${ps.map(p => `<label class="small muted">Nome de ${p.amigo ? 'amigo' : p.id === 'a' ? 'um filho' : 'outro filho'}<input id="aj-n-${p.id}" value="${esc(p.nome)}"></label>${p.amigo ? `<button class="btn sm bad" data-a="removerJogador" data-k="${p.id}">✕ Remover ${esc(p.nome)}</button>` : ''}`).join('')}
       <label class="small muted">Valor de 1 Talento em R$<input id="aj-vt" type="number" step="0.1" value="${S.config.valorTalento}"></label>
       <label class="small muted">Meta semanal de XP (Torneio)<input id="aj-ms" type="number" value="${S.config.metaSemanal}"></label>
       <label class="small muted">Prêmio da Barra da Família<input id="aj-pf" value="${esc(S.config.premioFamilia)}"></label>
@@ -752,7 +761,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '18';
+const VERSAO_ASSETS = '20';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -886,6 +895,36 @@ const ACOES = {
     if (!S.players[k].heroi) abrirDesperta();
     else if (S.players[k].subiu && S.players[k].pontos > 0) abrirBarras(S.players[k]); // subiu de nível com missão aprovada
   },
+  addJogador() {
+    UI.corNova = UI.corNova || CORES_JOG[jogadores().length % CORES_JOG.length];
+    UI.overlay = `<div class="over"><div class="box"><h3>➕ Adicionar jogador</h3>
+      <p class="small muted">Um amigo que vai jogar neste app. Ele ganha o próprio perfil, faz o Despertar e escolhe o herói.</p>
+      <input id="nj-nome" placeholder="Nome ou apelido do amigo" maxlength="16" autocomplete="off">
+      <span class="sec">Cor</span><div class="row wrap">${CORES_JOG.map(c => `<button class="cor${c === UI.corNova ? ' on' : ''}" data-a="corNova" data-k="${c}" style="background:${c}" aria-label="cor"></button>`).join('')}</div>
+      <button class="btn gold" data-a="addJogadorSim">Adicionar</button><button class="btn sm" data-a="fechar">Cancelar</button></div></div>`;
+    render();
+  },
+  corNova(c) { const v = (document.getElementById('nj-nome') || {}).value || ''; UI.corNova = c; ACOES.addJogador(); document.getElementById('nj-nome').value = v; },
+  addJogadorSim() {
+    const nome = (document.getElementById('nj-nome').value || '').trim().replace(/\s+/g, ' ');
+    if (nome.length < 2) return toast('Escreva o nome do amigo');
+    if (jogadores().some(p => p.nome.toLowerCase() === nome.toLowerCase())) return toast('Já tem um jogador com esse nome');
+    const id = 'j' + uid().slice(0, 8);
+    const p = novoJogador(id, nome, UI.corNova || CORES_JOG[0]); p.amigo = true;
+    S.players[id] = p; p.upd = Date.now(); marcar('players', id);
+    evento(id, 'Entrou no VITRAL'); localSalvar(); agendarSync();
+    UI.corNova = null; UI.overlay = null; SFX.sinos(); toast(`${nome} entrou no VITRAL!`); render();
+  },
+  removerJogador(id) {
+    const p = S.players[id]; if (!p) return;
+    UI.alvo = id;
+    UI.overlay = `<div class="over"><div class="box"><h3>Remover ${esc(p.nome)}?</h3><p class="muted">O perfil some da tela de entrada em todos os aparelhos.</p>${deslizar('removerJogadorSim', 'Arraste ou segure »')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
+  },
+  removerJogadorSim() {
+    const p = S.players[UI.alvo]; if (!p) return;
+    p.apagado = true; p.upd = Date.now(); marcar('players', p.id); localSalvar(); agendarSync();
+    UI.overlay = null; toast(`${p.nome} foi removido`); render();
+  },
   pin() {
     const v = (document.getElementById('pin').value || '').trim().toLowerCase();
     if (v !== String(S.config.pin).trim().toLowerCase()) { SFX.toin(); return toast('PIN errado'); }
@@ -954,7 +993,7 @@ const ACOES = {
   criarMissao() {
     const titulo = document.getElementById('nm-titulo').value.trim(); if (!titulo) return toast('Escreva a missão');
     const tipo = document.getElementById('nm-tipo').value, v = document.getElementById('nm-v').value;
-    const para = document.getElementById('nm-para').value === 'ab' ? ['a', 'b'] : [document.getElementById('nm-para').value];
+    const para = document.getElementById('nm-para').value === 'ab' ? jogadores().map(p => p.id) : [document.getElementById('nm-para').value];
     const rec = document.getElementById('nm-rec').value;
     if (rec === 'extra') { para.forEach(pid => criarMissao(pid, { titulo, tipo, v }, null, true)); toast('Missão extra lançada'); }
     else {
@@ -981,14 +1020,14 @@ const ACOES = {
   },
   apagarPremio(id) { const pr = S.premios.find(x => x.id === id); if (pr) { pr.apagado = true; toque('premios', pr); } salvar(); render(); },
   salvarAjustes() {
-    Object.values(S.players).forEach(p => { const v = document.getElementById('aj-n-' + p.id).value.trim(); if (v) S.config.nomes[p.id] = v; });
+    jogadores().forEach(p => { const v = document.getElementById('aj-n-' + p.id).value.trim(); if (v) S.config.nomes[p.id] = v; });
     S.config.valorTalento = +document.getElementById('aj-vt').value || S.config.valorTalento;
     S.config.metaSemanal = +document.getElementById('aj-ms').value || S.config.metaSemanal;
     S.config.premioFamilia = document.getElementById('aj-pf').value.trim() || S.config.premioFamilia;
     const pin = document.getElementById('aj-pin').value.trim(); if (pin) S.config.pin = pin;
     toque('config', S.config); aplicarNomes(); salvar(); toast('Ajustes salvos'); render();
   },
-  familiaZerar() { S.config.xpFamiliaBase = Object.values(S.players).reduce((s, x) => s + x.xp, 0); toque('config', S.config); salvar(); toast('Barra da Família recomeçou'); render(); },
+  familiaZerar() { S.config.xpFamiliaBase = jogadores().reduce((s, x) => s + x.xp, 0); toque('config', S.config); salvar(); toast('Barra da Família recomeçou'); render(); },
   resetar() {
     UI.overlay = `<div class="over"><div class="box"><h3>Apagar os dados deste aparelho?</h3><p class="muted">Este aparelho é desconectado e volta ao zero: missões, fotos e personagens daqui somem. O que já foi sincronizado continua salvo na planilha e volta quando você conectar de novo.</p>${deslizar('resetarSim', 'Arraste ou segure »')}<button class="btn" data-a="fechar">Cancelar</button></div></div>`; render();
   },
