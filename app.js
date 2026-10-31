@@ -517,7 +517,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f) };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '4';
+const VERSAO_ASSETS = '5';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;

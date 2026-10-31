@@ -3,6 +3,7 @@
 'use strict';
 
 const LARG = 390, ALT = 844;
+const Z = Math.min(3, Math.max(2, Math.round(window.devicePixelRatio || 2)));   // nitidez: canvas em Z vezes
 const MUNDO = 1.5;                       // mapa 768x1376 exibido 1,5x
 const POS_R1 = [                         // posição de cada ponto do Reino I no mapa (coordenadas 768x1376)
   [330, 1290], [500, 1130], [610, 1030], [300, 905], [290, 835], [420, 735], [610, 700],
@@ -28,16 +29,19 @@ function precarregar(cena) {
   Object.keys(window.VJ.DEVOTOS).forEach(k => cena.load.image('d-' + k, `assets/jogo/${k}.png?${v}`));
   ['anjo', 'larva', 'servo', 'insaciavel'].forEach(k => cena.load.image(k, `assets/jogo/${k}.png?${v}`));
   cena.load.image('mapa-r1', `assets/jogo/mapa-r1.jpg?${v}`);
+  cena.load.image('chao', `assets/jogo/mapa-r1-chao.png?${v}`);
+  Object.keys(window.VJ.DEVOTOS).forEach(k => cena.load.spritesheet('anda-' + k, `assets/jogo/anda-${k}.png?${v}`, { frameWidth: 96, frameHeight: 128 }));
   cena.load.image('batalha-r1', `assets/jogo/batalha-r1.jpg?${v}`);
 }
 function texto(cena, x, y, t, tam = 18, cor = '#ffffff', extra = {}) {
-  return cena.add.text(x, y, t, { fontFamily: 'Nunito Sans, sans-serif', fontStyle: '900', fontSize: tam + 'px', color: cor, stroke: '#140f1f', strokeThickness: Math.max(3, tam / 5), align: 'center', ...extra }).setOrigin(0.5);
+  return cena.add.text(x, y, t, { fontFamily: 'Nunito Sans, sans-serif', fontStyle: '900', fontSize: tam + 'px', color: cor, stroke: '#140f1f', strokeThickness: Math.max(3, tam / 5), align: 'center', resolution: Z, ...extra }).setOrigin(0.5);
 }
 
 // ===================== CARREGAMENTO (uma vez só) =====================
 class Carregar extends Phaser.Scene {
   constructor() { super('carregar'); }
   preload() {
+    this.cameras.main.setZoom(Z).centerOn(LARG / 2, ALT / 2);
     const barra = this.add.rectangle(LARG / 2 - 140, ALT / 2, 0, 14, 0xe9c46a).setOrigin(0, 0.5);
     this.add.rectangle(LARG / 2, ALT / 2, 284, 20).setStrokeStyle(2, 0xe9c46a);
     texto(this, LARG / 2, ALT / 2 - 40, 'Abrindo o reino…', 20, '#f3d27e');
@@ -47,108 +51,6 @@ class Carregar extends Phaser.Scene {
   create() { texturasBase(this); this.scene.start('explorar'); }
 }
 
-// ===================== EXPLORAÇÃO =====================
-class Explorar extends Phaser.Scene {
-  constructor() { super('explorar'); }
-  create() {
-    const VJ = window.VJ, p = VJ.p();
-    this.ocupado = false; this.destino = null; this.nos = [];
-    this.mapa = this.add.image(0, 0, 'mapa-r1').setOrigin(0).setScale(0.75);
-    this.W = this.mapa.displayWidth; this.H = this.mapa.displayHeight;
-    this.cameras.main.setBounds(0, 0, this.W, this.H);
-    this.pos = POS_R1.map(([x, y]) => ({ x: x * MUNDO, y: y * MUNDO }));
-    this.montarPontos();
-
-    // herói = primeiro devoto do time
-    const lider = p.equipe.find(k => p.devotos[k]) || 'clara';
-    const ini = p.reino.no > 0 ? this.pos[Math.min(p.reino.no, this.pos.length) - 1] : { x: 330 * MUNDO, y: 1340 * MUNDO };
-    this.sombra = this.add.image(ini.x, ini.y + 4, 'sombra').setScale(0.6);
-    this.heroi = this.add.image(ini.x, ini.y, 'd-' + lider).setOrigin(0.5, 1).setScale(0.27).setDepth(10);
-    this.poeira = this.add.particles(0, 0, 'ponto', { speed: { min: 10, max: 40 }, angle: { min: 200, max: 340 }, scale: { start: 0.35, end: 0 }, alpha: { start: 0.5, end: 0 }, lifespan: 420, tint: 0xd8c39a, emitting: false });
-    this.alvo = this.add.circle(0, 0, 14).setStrokeStyle(3, 0xe9c46a).setVisible(false).setDepth(5);
-    this.cameras.main.startFollow(this.heroi, true, 0.12, 0.12);
-    this.t = 0; this.perto = -1;
-
-    this.input.on('pointerdown', ptr => this.destino = { x: ptr.worldX, y: ptr.worldY });
-    this.input.on('pointermove', ptr => { if (ptr.isDown) this.destino = { x: ptr.worldX, y: ptr.worldY }; });
-    VJ.musica(VJ.reino.musica);
-    VJ.aoMudar = () => this.scene.restart();
-  }
-  montarPontos() {
-    const p = window.VJ.p(), R = window.VJ.reino, no = p.reino.no;
-    this.barreiraY = 0;
-    R.nos.forEach((n, i) => {
-      const { x, y } = this.pos[i], feito = i < no, atual = i === no;
-      const c = this.add.container(x, y).setDepth(4);
-      if (feito) { c.add(texto(this, 0, 0, '✓', 26, '#5fd39a')); c.setAlpha(0.8); this.nos.push(c); return; }
-      if (n.t === 'historia') { const a = this.add.image(0, 0, 'anjo').setOrigin(0.5, 1).setScale(0.18); c.add(a); this.tweens.add({ targets: a, y: -8, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.inOut' }); }
-      if (n.t === 'bau') { const b = this.add.image(0, -20, 'bau').setScale(0.9); c.add(b); this.tweens.add({ targets: b, angle: { from: -4, to: 4 }, yoyo: true, repeat: -1, duration: 500 }); }
-      if (n.t === 'santuario') { const l = this.add.rectangle(0, -60, 50, 140, 0xfff2b0, 0.35); c.add(l); this.tweens.add({ targets: l, alpha: 0.1, yoyo: true, repeat: -1, duration: 1100 }); }
-      if (n.t === 'batalha') n.inimigos.forEach((k, j) => {
-        const s = k === 'larva' ? this.add.image(0, 0, 'larva').setScale(0.28) : this.add.image(0, 0, 'd-' + sorteia(Object.keys(window.VJ.DEVOTOS))).setScale(0.2).setTintFill(0x5a5868);
-        s.setOrigin(0.5, 1).x = (j - (n.inimigos.length - 1) / 2) * 46; c.add(s);
-        this.tweens.add({ targets: s, x: s.x + Phaser.Math.Between(-30, 30), y: Phaser.Math.Between(-14, 14), yoyo: true, repeat: -1, duration: Phaser.Math.Between(1400, 2200), ease: 'Sine.inOut' });
-      });
-      if (n.t === 'boss') { const s = this.add.image(0, 0, 'servo').setOrigin(0.5, 1).setScale(0.42); c.add(s); this.tweens.add({ targets: s, scaleY: 0.45, yoyo: true, repeat: -1, duration: 800 }); }
-      if (n.t === 'chefe') { const s = this.add.image(0, 0, 'insaciavel').setOrigin(0.5, 1).setScale(0.55); c.add(s); this.tweens.add({ targets: s, y: -10, yoyo: true, repeat: -1, duration: 1300, ease: 'Sine.inOut' }); }
-      if (n.t === 'bruma') {
-        const fog = this.add.particles(0, 0, 'ponto', { x: { min: -x, max: this.W - x }, y: { min: -20, max: 20 }, speedX: { min: -12, max: 12 }, scale: { start: 2.6, end: 3.6 }, alpha: { start: 0.42, end: 0 }, tint: 0x9a98a8, lifespan: 2600, frequency: 40 });
-        c.add(fog);
-        c.add(texto(this, 0, -40, `🌫 ${n.titulo}\n${n.selos} Selo${n.selos > 1 ? 's' : ''} de Temperança`, 15, '#e6e3ef'));
-        this.barreiraY = Math.max(this.barreiraY, y);
-      }
-      if (atual && window.VJ.larvas() > 0) {
-        const lv = this.add.image(0, 10, 'larva').setOrigin(0.5, 1).setScale(0.6); c.add(lv);
-        c.add(texto(this, 0, -150, 'Larva bloqueando!\nRepare na vida real', 15, '#ef6b7b'));
-        this.barreiraY = Math.max(this.barreiraY, y);
-      }
-      if (atual) {
-        const seta = this.add.image(0, -120, 'seta').setTint(0xe9c46a); c.add(seta);
-        this.tweens.add({ targets: seta, y: -100, yoyo: true, repeat: -1, duration: 500 });
-        c.add(texto(this, 0, -150, n.titulo, 15, '#f3d27e'));
-      }
-      this.nos.push(c);
-    });
-  }
-  update(_, dt) {
-    const h = this.heroi; if (!h || !this.destino) return this.parado();
-    const dx = this.destino.x - h.x, dy = this.destino.y - h.y, d = Math.hypot(dx, dy);
-    if (d < 6) { this.destino = null; this.alvo.setVisible(false); return this.parado(); }
-    const v = 0.24 * dt, k = Math.min(1, v / d);
-    let nx = Phaser.Math.Clamp(h.x + dx * k, 30, this.W - 30), ny = Phaser.Math.Clamp(h.y + dy * k, 120, this.H - 10);
-    if (this.barreiraY && ny < this.barreiraY + 30) ny = this.barreiraY + 30;
-    h.setPosition(nx, ny); h.flipX = dx < 0;
-    this.t += dt; h.y -= Math.abs(Math.sin(this.t / 90)) * 5; h.angle = Math.sin(this.t / 90) * 4;
-    this.sombra.setPosition(nx, ny + 4);
-    if (Math.random() < 0.3) this.poeira.emitParticleAt(nx, ny);
-    this.alvo.setPosition(this.destino.x, this.destino.y).setVisible(true);
-    this.checarPontos();
-  }
-  parado() { if (this.heroi) { this.heroi.angle = 0; } this.checarPontos(); }
-  checarPontos() {
-    const VJ = window.VJ, p = VJ.p(), i = p.reino.no;
-    if (i >= this.pos.length || this.ocupado) return;
-    const alvo = this.pos[i], d = Math.hypot(alvo.x - this.heroi.x, alvo.y - this.heroi.y);
-    if (d > 80) { this.perto = -1; return; }
-    if (this.perto === i) return;
-    this.perto = i; this.destino = null; this.alvo.setVisible(false);
-    const r = VJ.interagir(i);
-    if (r.tipo === 'batalha') {
-      this.ocupado = true;
-      const vai = () => this.transicao(() => this.scene.start('batalha', { no: VJ.reino.nos[i] }));
-      if (r.video) VJ.video(r.video, vai); else vai();
-    } else if (r.tipo === 'historia') this.ocupado = true;
-    else if (r.tipo === 'ok') this.time.delayedCall(250, () => this.scene.restart());
-  }
-  transicao(fim) {
-    const cam = this.cameras.main;
-    cam.flash(250, 255, 255, 255);
-    const c = this.add.circle(cam.midPoint.x, cam.midPoint.y, 10, 0x0f0d17).setDepth(50);
-    this.tweens.add({ targets: c, radius: 700, duration: 500, ease: 'Cubic.in', onComplete: fim });
-    this.tweens.add({ targets: cam, zoom: 1.6, angle: 8, duration: 500 });
-  }
-}
-
 // ===================== BATALHA =====================
 class Batalha extends Phaser.Scene {
   constructor() { super('batalha'); }
@@ -156,11 +58,12 @@ class Batalha extends Phaser.Scene {
   create() {
     const VJ = window.VJ, p = VJ.p(), no = this.no;
     this.ocupado = true;
+    this.cameras.main.setZoom(Z).centerOn(LARG / 2, ALT / 2).fadeIn(300, 15, 13, 23);
     const fundo = this.add.image(LARG / 2, ALT / 2, 'batalha-r1'); fundo.setScale(Math.max(LARG / fundo.width, ALT / fundo.height) * 1.08);
     this.tweens.add({ targets: fundo, scale: fundo.scale * 1.03, yoyo: true, repeat: -1, duration: 6000, ease: 'Sine.inOut' });
-    this.add.rectangle(LARG / 2, ALT / 2, LARG, ALT, 0x1a1530, 0.18);
+    this.add.rectangle(LARG / 2, ALT / 2, LARG, ALT, 0x1a1530, 0.06);
     this.cor = this.cameras.main.postFX ? this.cameras.main.postFX.addColorMatrix() : null;
-    this.sat = { v: -0.65 }; if (this.cor) this.cor.saturate(this.sat.v);
+    this.sat = { v: -0.35 }; if (this.cor) this.cor.saturate(this.sat.v);
     this.faiscas = this.add.particles(0, 0, 'ponto', { speed: { min: 80, max: 260 }, scale: { start: 0.7, end: 0 }, lifespan: 520, emitting: false, blendMode: 'ADD' }).setDepth(30);
 
     // aliados
@@ -491,7 +394,7 @@ class Batalha extends Phaser.Scene {
 
 window.criarJogo = function (pai) {
   return new Phaser.Game({
-    type: Phaser.AUTO, parent: pai, width: LARG, height: ALT, backgroundColor: '#0f0d17',
+    type: Phaser.AUTO, parent: pai, width: LARG * Z, height: ALT * Z, backgroundColor: '#0f0d17',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     input: { activePointers: 2 }, render: { antialias: true },
     scene: [Carregar, Explorar, Batalha],
