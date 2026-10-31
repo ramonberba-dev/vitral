@@ -385,6 +385,7 @@ function telaMapa(p) {
   ${no >= tot ? `<div class="card" style="border-color:var(--gold)"><b>👑 Reino I libertado!</b><p class="small muted">Lenda desbloqueada: São Francisco de Assis. Os Vales de Pedra chegam na próxima versão.</p></div>` :
     `<div class="card"><span class="sec">Próximo ponto</span><b>${esc(prox.titulo)}</b>${aviso ? `<p class="small" style="color:var(--warn)">${aviso}</p>` : '<p class="small muted">Ande até ele no mapa. Cada ponto gasta 1 Chama.</p>'}</div>`}
   <button class="btn gold full" style="font-size:1.15rem;padding:16px" data-a="entrarReino">▶ Entrar no reino</button>
+  ${telaDiario(p)}
   <p class="small muted" style="text-align:center">Segure o dedo na tela para andar. Na batalha, toque na hora certa para dar CRÍTICO e para DEFENDER.</p>`;
 }
 function telaEquipe(p) {
@@ -532,6 +533,46 @@ function ganharXpHeroi(p, n) {
     (CARTAS_POR_NIVEL[st.lvl] || []).forEach(id => darCarta(p, id));
   }
 }
+// ---------- Diário do Anjo e libertação dos chefes ----------
+const artePagina = e => e.arte || (e.tipo === 'capanga' ? `assets/jogo/${e.k}.png` : `assets/sete/${e.k}.jpg`);
+function mostrarLibertacao(p) {
+  const e = DIARIO.find(x => x.k === p.libertar); p.libertar = null; salvar();
+  if (!e) return;
+  SFX.sinos();
+  UI.overlay = `<div class="over"><div class="box revela">
+    <span class="sec">Libertado!</span>
+    <img src="assets/sete/${e.k}-livre.jpg" alt="${esc(e.pessoa)} livre" style="width:100%;max-width:none;border-radius:14px">
+    <h2>${esc(e.pessoa)} está livre</h2>
+    <p class="small">O Apagado que agarrava ${esc(e.pessoa)} fugiu para a Bruma. A cor voltou.</p>
+    <div class="anjo" style="text-align:left">${img('assets/anjo/emocionado.jpg', 'Anjo')}<div class="bubble">${esc(e.licao)}</div></div>
+    <p class="small" style="color:var(--gold)">📖 Página nova no Diário do Anjo</p>
+    <button class="btn gold" data-a="libertacaoOk">Continuar</button></div></div>`;
+  render();
+}
+function telaDiario(p) {
+  const d = p.diario || {}, lista = DIARIO.filter(e => e.tipo !== 'capanga'), caps = DIARIO.filter(e => e.tipo === 'capanga');
+  const n = DIARIO.filter(e => d[e.k]).length;
+  const cel = e => d[e.k]
+    ? `<button class="pag" data-a="pagina" data-k="${e.k}"><img src="${artePagina(e)}" alt="${esc(e.nome)}"${e.cinza ? ' style="filter:grayscale(1) brightness(.8)"' : ''}><b>${esc(e.nome)}</b><small>${esc(e.vicio)}</small></button>`
+    : `<div class="pag fechada"><img src="${artePagina(e)}" alt=""><b>???</b><small>${e.tipo === 'oculto' ? 'oculto' : `Reino ${e.reino}`}</small></div>`;
+  return `<div class="card"><span class="sec">📖 Diário do Anjo · ${n}/${DIARIO.length} páginas</span>
+    <p class="small muted" style="margin:0">Cada inimigo vencido abre a página dele: quem era, a passagem da Bíblia e a lição.</p>
+    <p class="small" style="margin:4px 0 0"><b>Os Sete Apagados</b></p><div class="pags">${lista.map(cel).join('')}</div>
+    <p class="small" style="margin:4px 0 0"><b>Capangas</b></p><div class="pags">${caps.map(cel).join('')}</div></div>`;
+}
+function abrirPagina(p, k) {
+  const e = DIARIO.find(x => x.k === k);
+  UI.overlay = `<div class="over"><div class="box">
+    <img src="${artePagina(e)}" alt="${esc(e.nome)}" style="width:100%;max-height:46vh;object-fit:contain;border-radius:14px;background:#0b0912">
+    <div><span class="sec">${e.tipo === 'chefe' ? `Reino ${e.reino} · ${e.vicio}` : e.vicio}</span><h2>${esc(e.nome)}</h2></div>
+    <p class="small"><b>Quem era:</b> ${esc(e.era)}</p>
+    ${e.biblia ? `<p class="small"><b>Na Bíblia:</b> ${esc(e.biblia)} <span class="muted">(${e.ref})</span></p>` : ''}
+    <p class="small"><b>Na vida real:</b> ${esc(e.vida)}</p>
+    <p class="small"><b>Golpe:</b> ${esc(e.golpe)}</p>
+    ${e.v ? `<p class="small"><b>Quem vence:</b> ${VIRTUDES[e.v].nome}</p>` : ''}
+    <div class="anjo">${img('assets/anjo/orgulhoso.jpg', 'Anjo')}<div class="bubble">${esc(e.licao)}</div></div>
+    <button class="btn sm" data-a="fechar">Fechar</button></div></div>`;
+}
 // ---------- cartas de poder ----------
 // id 'ali:<devoto>' é a carta de um Aliado: ele entra na luta e usa o Dom dele
 function cartaInfo(p, id) {
@@ -620,7 +661,7 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '10';
+const VERSAO_ASSETS = '11';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
   h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
@@ -691,7 +732,9 @@ window.VJ = {
   },
   voltarMapa: () => {
     hudJogo(); if (!JOGO) return; JOGO.scene.stop('batalha'); JOGO.scene.start('explorar');
-    const p = pAtual(); if (p.pontos > 0 && p.ganhouAgora) { p.ganhouAgora = false; abrirBarras(p); }
+    const p = pAtual();
+    if (p.libertar) return mostrarLibertacao(p);
+    if (p.pontos > 0 && p.ganhouAgora) { p.ganhouAgora = false; abrirBarras(p); }
   },
   perder: () => { const p = pAtual(); falaAnjo(p, 'derrota'); salvar(); hudJogo(); },
   // chamado quando o herói chega no próximo ponto do mapa
@@ -726,6 +769,10 @@ window.VJ = {
       texto = `As Colinas Brancas estão livres!\nLenda desbloqueada: ${no.lenda}\n+23 Lumens`;
       evento(p.id, `Libertou as Colinas Brancas: Lenda ${no.lenda}`);
     } else evento(p.id, `Venceu: ${no.titulo}`);
+    // Diário do Anjo: cada inimigo vencido abre a página dele
+    p.diario = p.diario || {};
+    no.inimigos.forEach(k => { if (DIARIO.some(x => x.k === k) && !p.diario[k]) { p.diario[k] = Date.now(); p.paginaNova = true; } });
+    if (no.t === 'chefe') p.libertar = no.inimigos[0];
     // evolução: XP para o herói e 1 ponto de barra por vitória (a escolha aparece ao voltar para o mapa)
     const xp = no.t === 'chefe' ? 80 : no.t === 'boss' ? 45 : 18;
     ganharXpHeroi(p, xp); p.pontos = (p.pontos || 0) + 1; p.ganhouAgora = true;
@@ -865,6 +912,8 @@ const ACOES = {
     render();
   },
   barrasAbrir() { abrirBarras(pAtual()); },
+  pagina(k) { const p = pAtual(); p.paginaNova = false; abrirPagina(p, k); render(); },
+  libertacaoOk() { const p = pAtual(); UI.overlay = null; render(); if (p.pontos > 0 && p.ganhouAgora) { p.ganhouAgora = false; abrirBarras(p); } },
   deckTroca(id) {
     const p = pAtual();
     if (p.deck.includes(id)) p.deck = p.deck.filter(x => x !== id);

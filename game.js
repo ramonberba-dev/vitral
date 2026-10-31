@@ -27,7 +27,7 @@ function texturasBase(cena) {
 function precarregar(cena) {
   const v = window.VJ.versao;
   Object.keys(window.VJ.DEVOTOS).forEach(k => cena.load.image('d-' + k, `assets/jogo/${k}.png?${v}`));
-  ['anjo', 'larva', 'servo', 'insaciavel'].forEach(k => cena.load.image(k, `assets/jogo/${k}.png?${v}`));
+  ['anjo', 'larva', 'beliscao', 'servo', 'insaciavel'].forEach(k => cena.load.image(k, `assets/jogo/${k}.png?${v}`));
   cena.load.image('mapa-r1', `assets/jogo/mapa-r1.jpg?${v}`);
   cena.load.image('chao', `assets/jogo/mapa-r1-chao.png?${v}`);
   Object.keys(window.VJ.DEVOTOS).forEach(k => cena.load.spritesheet('anda-' + k, `assets/jogo/anda-${k}.png?${v}`, { frameWidth: 96, frameHeight: 128 }));
@@ -93,7 +93,7 @@ class Batalha extends Phaser.Scene {
     this.inimigos = no.inimigos.map((k, i) => {
       const e = VJ.INIMIGOS[k];
       const chave = k === 'copia' ? 'd-' + sorteia(Object.keys(VJ.DEVOTOS)) : k;
-      const esc = k === 'insaciavel' ? 0.62 : k === 'servo' ? 0.52 : k === 'larva' ? 0.5 : 0.33;
+      const esc = k === 'insaciavel' ? 0.56 : k === 'servo' ? 0.52 : k === 'larva' ? 0.5 : k === 'beliscao' ? 0.42 : 0.33;
       const base = { x: fx[i], y: k === 'insaciavel' ? 470 : 430 };
       const spr = this.add.image(base.x, -200, chave).setOrigin(0.5, 1).setScale(esc).setDepth(6);
       if (k === 'copia') spr.setTintFill(0x5a5868);
@@ -349,6 +349,8 @@ class Batalha extends Phaser.Scene {
   async turnoInimigo() {
     for (const f of this.inimigos.filter(x => x.hp > 0)) {
       if (f.stun) { f.stun--; this.falar(`${f.nome} está atordoado!`); await espera(this, 500); continue; }
+      // golpe-assinatura do Insaciável (Gula): a cada 3 turnos devora a cor do campo, se cura e esvazia o Supremo
+      if (f.k === 'insaciavel' && (f.turnos = (f.turnos || 0) + 1) % 3 === 0) { await this.devorar(f); if (await this.checarFim()) return; continue; }
       const vivos = this.aliados.filter(x => x.hp > 0); if (!vivos.length) break;
       const alvo = sorteia(vivos);
       this.falar(`${f.nome} ataca ${alvo.d.nome}!`);
@@ -370,6 +372,23 @@ class Batalha extends Phaser.Scene {
       this.desenhar();
       if (await this.checarFim()) return;
     }
+  }
+  async devorar(f) {
+    const herois = this.aliados.filter(x => x.hp > 0);
+    const faixa = this.add.rectangle(LARG / 2, 300, LARG, 70, 0x2a2633, 0.94).setDepth(40);
+    const t = texto(this, LARG / 2, 300, 'DEVORAR', 34, '#e9d36a').setDepth(41).setScale(0.3);
+    this.tweens.add({ targets: t, scale: 1, duration: 260, ease: 'Back.out' });
+    this.falar(`${f.nome} devora a cor do campo!`); window.VJ.sfx('blob');
+    // o campo perde a cor enquanto ele suga
+    if (this.cor) this.tweens.add({ targets: this.sat, v: -0.9, duration: 700, yoyo: true, hold: 500, onUpdate: () => this.cor.saturate(this.sat.v) });
+    this.tweens.add({ targets: f.spr, scaleX: f.spr.scaleX * 1.15, scaleY: f.spr.scaleY * 1.15, yoyo: true, duration: 450 });
+    const sopro = this.add.particles(LARG / 2, ALT - 160, 'ponto', { speedY: { min: -420, max: -260 }, speedX: { min: -60, max: 60 }, scale: { start: 0.8, end: 0 }, tint: 0xb4b1c2, lifespan: 900, quantity: 3 }).setDepth(30);
+    this.cameras.main.shake(700, 0.006);
+    await espera(this, 1100); sopro.stop(); this.time.delayedCall(900, () => sopro.destroy());
+    const cura = Math.round(f.max * 0.12); f.hp = Math.min(f.max, f.hp + cura);
+    this.popNum(f.base.x, f.spr.y - f.spr.displayHeight / 2, '+' + cura, '#5fd39a', 30);
+    herois.forEach(x => { x.carga = Math.max(0, x.carga - 30); this.popNum(x.base.x, x.base.y - 160, '-30% Supremo', '#e9d36a', 18); });
+    faixa.destroy(); t.destroy(); this.desenhar();
   }
   // ---- cartas de poder (cada uma uma vez por batalha) ----
   cartasLivres() { return (window.VJ.cartas ? window.VJ.cartas() : []).filter(c => !this.usadas.has(c.id)); }
