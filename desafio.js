@@ -34,8 +34,7 @@ class Desafio extends Phaser.Scene {
     this.tabuas = 0;
     // herói (de costas, correndo)
     const k = p.heroi && this.textures.exists('anda-' + p.heroi) ? p.heroi : 'kael';
-    this.anim(k);
-    this.heroi = this.add.sprite(fX(PONTE.fHeroi, 0), fY(PONTE.fHeroi), 'anda-' + k, 12).setOrigin(0.5, 0.96).setScale(0.95).play(k + '-cima');
+    this.heroi = new Boneco(this, k, fX(PONTE.fHeroi, 0), fY(PONTE.fHeroi), 0.95).olhar(0, -1);
     this.add.ellipse(0, 0, 50, 14, 0x000000, 0.3).setName('sombra');
     this.sombra = this.children.getByName('sombra');
     this.lane = 0; this.alvoLane = 0;
@@ -55,11 +54,7 @@ class Desafio extends Phaser.Scene {
     VJ.musica('09-batalha');
     this.pintarHud();
   }
-  anim(k) {
-    if (this.anims.exists(k + '-cima')) return;
-    const a = (n, ini) => this.anims.create({ key: `${k}-${n}`, frames: this.anims.generateFrameNumbers('anda-' + k, { start: ini, end: ini + 5 }), frameRate: 12, repeat: -1 });
-    a('baixo', 0); a('lado', 6); a('cima', 12);
-  }
+
   vasoTextura() {
     if (this.textures.exists('vaso')) return;
     const g = this.make.graphics({ x: 0, y: 0, add: false });
@@ -104,7 +99,7 @@ class Desafio extends Phaser.Scene {
     const l = Phaser.Math.FloatBetween(-0.85, 0.85);
     let spr;
     if (beli) spr = this.add.image(0, 0, 'beliscao').setOrigin(0.5, 1);
-    else { const k = sorteia(['simo', 'clara', 'tonho', 'luzia', 'gio', 'guto']); this.anim(k); spr = this.add.sprite(0, 0, 'anda-' + k, 0).setOrigin(0.5, 0.96).setTint(0x6f6c80).play(k + '-baixo'); }
+    else spr = new Boneco(this, sorteia(['simo', 'clara', 'tonho', 'luzia', 'gio', 'guto']), 0, 0).pintar(0x6f6c80);
     this.inimigos.push({ f: 0.02, l, hp, max: hp, spr, base: beli ? 0.32 : 1, vel: (beli ? 0.24 : 0.19) * (1 + t / 60000) });
   }
   novosVasos() {
@@ -143,7 +138,7 @@ class Desafio extends Phaser.Scene {
     if (this.teclas) { if (this.teclas.left.isDown) this.alvoLane = Math.max(-0.9, this.alvoLane - dt * 0.003); if (this.teclas.right.isDown) this.alvoLane = Math.min(0.9, this.alvoLane + dt * 0.003); }
     this.lane += (this.alvoLane - this.lane) * Math.min(1, dt * 0.015);
     this.desenharPonte(dt);
-    this.heroi.setPosition(fX(PONTE.fHeroi, this.lane), fY(PONTE.fHeroi)).setDepth(1000 + PONTE.fHeroi * 1000);
+    this.heroi.setPosition(fX(PONTE.fHeroi, this.lane), fY(PONTE.fHeroi)).setDepth(1000 + PONTE.fHeroi * 1000).andar(dt, 1.5);
     this.sombra.setPosition(this.heroi.x, this.heroi.y).setDepth(this.heroi.depth - 1);
     // tiro automático
     this.proxTiro -= dt; if (this.proxTiro <= 0) { this.atirar(); this.proxTiro = 300 / s.ritmo; }
@@ -163,13 +158,13 @@ class Desafio extends Phaser.Scene {
       const alvo = [...this.vasos, ...this.inimigos, ...(s.chefe ? [s.chefe] : [])].find(o => o.hp > 0 && Math.abs(o.f - b.f) < 0.035 && Math.abs(o.l - b.l) < (o.largura || 0.2));
       if (!alvo) return true;
       alvo.hp -= Math.round(10 * s.forca); b.spr.destroy();
-      if (alvo.spr) { alvo.spr.setTintFill(0xffffff); this.time.delayedCall(60, () => { if (!alvo.spr.active) return; if (alvo.cinza) alvo.spr.setTint(0x6f6c80); else if (alvo.spr.texture.key.startsWith('anda-')) alvo.spr.setTint(0x6f6c80); else alvo.spr.clearTint(); }); }
+      if (alvo.spr) { alvo.spr.setTintFill(0xffffff); this.time.delayedCall(60, () => { if (alvo.spr.active) alvo.spr.clearTint(); }); }
       return false;
     });
     // inimigos
     this.inimigos = this.inimigos.filter(e => {
       if (e.hp <= 0) { s.abates++; this.estoura(e.spr.x, e.spr.y - 30, 0xb4b1c2); e.spr.destroy(); this.pintarHud(); return false; }
-      e.f += dt * e.vel / 1000;
+      e.f += dt * e.vel / 1000; if (e.spr.andar) e.spr.andar(dt, 1);
       if (e.f > PONTE.fHeroi - 0.02 && e.f < PONTE.fHeroi + 0.03 && Math.abs(e.l - this.lane) < 0.3) { e.spr.destroy(); this.ferido(); return false; }
       if (e.f > 1.08) { e.spr.destroy(); return false; }
       this.posicionar(e, e.f, e.l, e.base); return true;
@@ -222,7 +217,7 @@ class Desafio extends Phaser.Scene {
   }
   terminar(venceu) {
     const s = this.st; if (s.fim) return; s.fim = true;
-    this.heroi.anims.stop();
+    this.heroi.andar(0, 0);
     const r = window.VJ.fimDesafio({ venceu, abates: s.abates });
     const caixa = this.add.rectangle(LARG / 2, ALT / 2, 320, 300, 0x15121f, 0.94).setStrokeStyle(3, venceu ? 0xf2c94c : 0xef6b7b).setDepth(9000);
     texto(this, LARG / 2, ALT / 2 - 100, venceu ? 'PONTE LIBERTADA!' : 'A Bruma venceu desta vez', venceu ? 28 : 22, venceu ? '#f3d27e' : '#ff8a98').setDepth(9001);

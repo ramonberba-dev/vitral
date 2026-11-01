@@ -17,7 +17,7 @@ class Explorar extends Phaser.Scene {
   constructor() { super('explorar'); }
   create() {
     const VJ = window.VJ, p = VJ.p();
-    this.ocupado = false; this.perto = -1; this.t = 0; this.toque = null; this.vet = { x: 0, y: 0 };
+    this.ocupado = false; this.perto = -1; this.t = 0; this.toque = null; this.vet = { x: 0, y: 0 }; this.vel = { x: 0, y: 0 }; this.patrulha = [];
     this.mapa = this.add.image(0, 0, 'mapa-r1').setOrigin(0).setScale(ESC_MAPA).setDepth(-10);
     this.W = this.mapa.displayWidth; this.H = this.mapa.displayHeight;
     this.lerChao();
@@ -54,25 +54,16 @@ class Explorar extends Phaser.Scene {
     const c = this.chao, px = Math.floor(x * c.k), py = Math.floor(y * c.k);
     return c.d[(py * c.w + px) * 4] > 127;
   }
-  criarAnims(k) {
-    if (this.anims.exists(k + '-baixo')) return;
-    const a = (n, ini) => this.anims.create({ key: `${k}-${n}`, frames: this.anims.generateFrameNumbers('anda-' + k, { start: ini, end: ini + 5 }), frameRate: 10, repeat: -1 });
-    a('baixo', 0); a('lado', 6); a('cima', 12);
-  }
   boneco(k, x, y) {
-    this.criarAnims(k);
-    const s = this.add.sprite(x, y, 'anda-' + k, 0).setOrigin(0.5, 0.96).setScale(ESC_BONECO);
+    const s = new Boneco(this, k, x, y, ESC_BONECO);
     s.sombra = this.add.ellipse(x, y, 46, 14, 0x000000, 0.28);
-    s.k = k; s.dir = 'baixo';
+    s.passo = () => { if (this.poeira) this.poeira.emitParticleAt(s.x + (s.virado ? -6 : 6), s.y, 3); };
     return s;
   }
-  virar(s, dx, dy, andando) {
-    let dir = s.dir;
-    if (Math.abs(dx) > 0.01 && Math.abs(dx) > Math.abs(dy) * 0.8) { dir = 'lado'; s.setFlipX(dx > 0); }
-    else if (Math.abs(dy) > 0.01) { dir = dy < 0 ? 'cima' : 'baixo'; s.setFlipX(false); }
-    if (andando) { if (!s.anims.isPlaying || s.anims.currentAnim.key !== `${s.k}-${dir}`) s.play(`${s.k}-${dir}`, true); }
-    else if (s.anims.isPlaying || s.dir !== dir) { s.anims.stop(); s.setFrame({ baixo: 0, lado: 6, cima: 12 }[dir]); }
-    s.dir = dir;
+  // boneco anda (vel > 0) ou fica parado respirando
+  virar(s, dx, dy, vel) {
+    if (vel > 0) s.olhar(dx, dy);
+    s.andar(this.dtAgora || 16, vel);
   }
   montarTime(p) {
     const time = p.equipe.filter(k => p.devotos[k] && ANDA.includes(k)).slice(0, 4);
@@ -126,10 +117,9 @@ class Explorar extends Phaser.Scene {
       if (n.t === 'batalha') n.inimigos.forEach((k, j) => {
         let s;
         if (k === 'larva') s = this.add.image(0, 0, 'larva').setScale(0.24).setOrigin(0.5, 1);
-        else { const dk = sorteia(ANDA); this.criarAnims(dk); s = this.add.sprite(0, 0, 'anda-' + dk, 6).setOrigin(0.5, 0.96).setScale(ESC_BONECO * 0.95).setTint(0x6f6c80); s.play(dk + '-lado'); }
+        else { s = new Boneco(this, sorteia(ANDA), 0, 0, ESC_BONECO * 0.95).pintar(0x6f6c80).olhar(1, 0); s.vel = 0.8; this.patrulha.push(s); }
         s.x = (j - (n.inimigos.length - 1) / 2) * 50; c.add(s);
-        if (s.setFlipX) s.setFlipX(true);
-        this.tweens.add({ targets: s, x: s.x + 36, yoyo: true, repeat: -1, duration: Phaser.Math.Between(1600, 2400), ease: 'Sine.inOut', onYoyo: () => s.setFlipX && s.setFlipX(false), onRepeat: () => s.setFlipX && s.setFlipX(true) });
+        this.tweens.add({ targets: s, x: s.x + 36, yoyo: true, repeat: -1, duration: Phaser.Math.Between(1600, 2400), ease: 'Sine.inOut', onYoyo: () => s.olhar && s.olhar(-1, 0), onRepeat: () => s.olhar && s.olhar(1, 0) });
       });
       if (n.t === 'boss') { const s = this.add.image(0, 0, 'servo').setOrigin(0.5, 1).setScale(0.36); c.add(s); this.tweens.add({ targets: s, scaleY: 0.38, yoyo: true, repeat: -1, duration: 800 }); }
       if (n.t === 'chefe') { const s = this.add.image(0, 0, 'insaciavel').setOrigin(0.5, 1).setScale(0.5); c.add(s); this.tweens.add({ targets: s, y: -10, yoyo: true, repeat: -1, duration: 1300, ease: 'Sine.inOut' }); }
@@ -160,29 +150,31 @@ class Explorar extends Phaser.Scene {
       if (k.left.isDown) vx = -1; else if (k.right.isDown) vx = 1;
       if (k.up.isDown) vy = -1; else if (k.down.isDown) vy = 1;
     }
-    const L = this.lider, forca = Math.min(1, Math.hypot(vx, vy));
-    if (!this.ocupado && forca > 0.15) {
-      const n = Math.hypot(vx, vy), passo = VEL * dt * (0.45 + 0.55 * forca);
-      const dx = vx / n * passo, dy = vy / n * passo;
+    const L = this.lider, forca = this.ocupado ? 0 : Math.min(1, Math.hypot(vx, vy));
+    this.dtAgora = dt;
+    // inércia curta: arranca e para suave, sem patinar
+    const alvo = forca > 0.15 ? { x: vx / Math.hypot(vx, vy) * (0.45 + 0.55 * forca), y: vy / Math.hypot(vx, vy) * (0.45 + 0.55 * forca) } : { x: 0, y: 0 };
+    const k = Math.min(1, dt * 0.018);
+    this.vel.x += (alvo.x - this.vel.x) * k; this.vel.y += (alvo.y - this.vel.y) * k;
+    const rapidez = Math.hypot(this.vel.x, this.vel.y);
+    if (rapidez > 0.05) {
+      const dx = this.vel.x * VEL * dt, dy = this.vel.y * VEL * dt;
       let andou = false;
       // desliza nas bordas: tenta o movimento inteiro, depois só em x, depois só em y
       if (this.pisavel(L.x + dx, L.y + dy)) { L.x += dx; L.y += dy; andou = true; }
-      else if (this.pisavel(L.x + dx, L.y)) { L.x += dx; andou = true; }
-      else if (this.pisavel(L.x, L.y + dy)) { L.y += dy; andou = true; }
-      this.virar(L, dx, dy, andou);
-      L.anims.timeScale = 0.7 + 0.5 * forca;
-      if (andou) {
-        this.rastro.unshift({ x: L.x, y: L.y }); this.rastro.length = 60;
-        if (Math.random() < 0.25) this.add_(this.poeira).emitParticleAt(L.x, L.y);
-      }
-    } else this.virar(L, 0, 0, false);
+      else if (this.pisavel(L.x + dx, L.y)) { L.x += dx; this.vel.y *= 0.5; andou = true; }
+      else if (this.pisavel(L.x, L.y + dy)) { L.y += dy; this.vel.x *= 0.5; andou = true; }
+      this.virar(L, alvo.x || dx, alvo.y || dy, andou ? rapidez * 1.15 : 0);
+      if (andou) { this.rastro.unshift({ x: L.x, y: L.y }); this.rastro.length = 60; }
+    } else this.virar(L, 0, 0, 0);
     this.seguidores.forEach((s, i) => {
       const alvo = this.rastro[Math.min(this.rastro.length - 1, (i + 1) * 13)];
       const dx = alvo.x - s.x, dy = alvo.y - s.y, d = Math.hypot(dx, dy);
-      if (d > 2) { const k = Math.min(1, (VEL * dt * 1.1) / d); s.x += dx * k; s.y += dy * k; this.virar(s, dx, dy, true); }
-      else this.virar(s, 0, 0, false);
+      if (d > 2) { const k = Math.min(1, (VEL * dt * 1.1) / d); s.x += dx * k; s.y += dy * k; this.virar(s, dx, dy, 1.1); }
+      else this.virar(s, 0, 0, 0);
     });
     this.t += dt;
+    this.patrulha.forEach(b => b.active && b.andar(dt, b.vel));
     const ax = L.x + (L.flipX ? -46 : 46), ay = L.y - 96 + Math.sin(this.t / 400) * 7;
     this.anjo.x += (ax - this.anjo.x) * 0.08; this.anjo.y += (ay - this.anjo.y) * 0.08; this.anjo.setFlipX(L.flipX);
     this.anjoBrilho.setPosition(this.anjo.x, this.anjo.y);
@@ -216,8 +208,7 @@ class Explorar extends Phaser.Scene {
         e.obj = this.add.image(e.x, e.y, 'bau').setOrigin(0.5, 1).setScale(0.55).setDepth(e.y).setTint(0xd9d9ff);
         this.tweens.add({ targets: e.obj, angle: { from: -3, to: 3 }, yoyo: true, repeat: -1, duration: 700 });
       } else {
-        const k = ANDA[(e.i * 5) % ANDA.length]; this.criarAnims(k);
-        e.obj = this.add.sprite(e.x, e.y, 'anda-' + k, 0).setOrigin(0.5, 0.96).setScale(ESC_BONECO * 0.9).setDepth(e.y);
+        e.obj = new Boneco(this, ANDA[(e.i * 5) % ANDA.length], e.x, e.y, ESC_BONECO * 0.9).setDepth(e.y); e.obj.vel = 0; this.patrulha.push(e.obj);
         e.balao = texto(this, e.x, e.y - 104, '💬', 22).setDepth(e.y + 1);
         this.tweens.add({ targets: e.balao, y: e.y - 112, yoyo: true, repeat: -1, duration: 600 });
       }
