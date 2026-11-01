@@ -452,7 +452,7 @@ function telaMapa(p) {
   ${no >= tot ? `<div class="card" style="border-color:var(--gold)"><b>👑 Reino I libertado!</b><p class="small muted">Lenda desbloqueada: São Francisco de Assis. Os Vales de Pedra chegam na próxima versão.</p></div>` :
     `<div class="card"><span class="sec">Próximo ponto</span><b>${esc(prox.titulo)}</b>${aviso ? `<p class="small" style="color:var(--warn)">${aviso}</p>` : '<p class="small muted">Ande até ele no mapa. Só as batalhas gastam Chama. Explore: tem cacos de vitral, baús escondidos e peregrinos pelo caminho.</p>'}</div>`}
   <button class="btn gold full" style="font-size:1.15rem;padding:16px" data-a="entrarReino">▶ Entrar no reino</button>
-  <div class="card desafio-card"><div><b>⚡ Desafio da Ponte</b><p class="small muted" style="margin:2px 0 0">Corra pela ponte, quebre os vasos para ficar mais forte e derrote o Servo. ${Math.max(0, DESAFIO_GRATIS - desafioHoje(p).n)} de ${DESAFIO_GRATIS} corridas grátis hoje.</p></div><button class="btn gold" data-a="desafio">Correr</button></div>
+  <div class="card desafio-card"><div><b>⚔ Estrada dos Peregrinos</b><p class="small muted" style="margin:2px 0 0">Junte peregrinos pelos portais de vitral, abra baús de armas e derrote o Servo no fim da estrada. ${Math.max(0, DESAFIO_GRATIS - desafioHoje(p).n)} de ${DESAFIO_GRATIS} corridas grátis hoje.</p></div><button class="btn gold" data-a="desafio">Correr</button></div>
   ${telaDiario(p)}
   <p class="small muted" style="text-align:center">Segure o dedo na tela para andar. Na batalha, toque na hora certa para dar CRÍTICO e para DEFENDER.</p>`;
 }
@@ -766,10 +766,10 @@ function stats(k, lvl) {
   return { hp: r(hp * f), atk: r(atk * f), def: 0, crit: 0, dom: 0 };
 }
 let JOGO = null;
-const VERSAO_ASSETS = '27';
+const VERSAO_ASSETS = '28';
 function hudJogo() {
   const p = pAtual(), h = document.getElementById('jogo-hud'); if (!h || !p) return;
-  h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${window.VJ.cena === 'desafio' ? '⚡ Desafio da Ponte' : REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
+  h.innerHTML = `<button class="btn sm" data-a="sairJogo">‹ Sair</button><b style="flex:1;text-align:center">${window.VJ.cena === 'desafio' ? '⚔ Estrada dos Peregrinos' : REINO1.nome}</b><span class="ic-chama">🔥${p.chama}</span><span class="ic-lum">✦${p.lumens}</span><span>💊${p.pilulas}</span>`;
 }
 function abrirJogo() {
   const p = pAtual();
@@ -787,7 +787,7 @@ function abrirJogo() {
   // na primeira vez, o Prólogo (a queda e a origem da Bruma) vem antes de tudo
   if (!p.prologo) { p.prologo = true; salvar(); tocarVideo('prologo', reino); } else reino();
 }
-// Desafio da Ponte: 3 corridas grátis por dia; depois, cada corrida gasta 1 Chama
+// Desafio da Estrada dos Peregrinos: 3 corridas grátis por dia; depois, cada corrida gasta 1 Chama
 const DESAFIO_GRATIS = 3;
 function desafioHoje(p) { if (!p.desafio || p.desafio.dia !== hoje()) p.desafio = { dia: hoje(), n: 0 }; return p.desafio; }
 function abrirDesafio() {
@@ -835,7 +835,7 @@ window.VJ = {
   fimDesafio({ venceu, abates }) {
     const p = pAtual(), lum = 2 + Math.floor(abates / 4) + (venceu ? 8 : 0);
     p.lumens += lum; let texto = `${abates} inimigos derrotados\n+${lum} ✦ Lumens`;
-    if (venceu) { const t = Math.random() < 0.35 ? 'prata' : 'bronze'; ganharBau(p, t); texto += `\n🎁 ${BAUS[t].nome} no Armário!`; evento(p.id, 'Venceu o Desafio da Ponte'); }
+    if (venceu) { const t = Math.random() < 0.35 ? 'prata' : 'bronze'; ganharBau(p, t); texto += `\n🎁 ${BAUS[t].nome} no Armário!`; evento(p.id, 'Libertou a Estrada dos Peregrinos'); }
     ganharXpHeroi(p, venceu ? 25 : 8); texto += `\n+${venceu ? 25 : 8} XP do herói`;
     salvar(); hudJogo();
     const d = desafioHoje(p);

@@ -77,7 +77,7 @@ class Batalha extends Phaser.Scene {
   criarInimigo(k, x, y) {
     const VJ = window.VJ, e = VJ.INIMIGOS[k], ia = IA[k] || IA.beliscao;
     let obj;
-    if (k === 'copia') obj = new Boneco(this, sorteia(Object.keys(VJ.DEVOTOS)), x, -80, ia.esc).pintar(0x5f5c70).olhar(0, 1);
+    if (k === 'copia') obj = new Boneco(this, sorteia(Object.keys(VJ.DEVOTOS)), x, -80, ia.esc, true).olhar(0, 1);
     else obj = this.add.image(x, -80, k).setOrigin(0.5, 1).setScale(ia.esc);
     const f = { k, ia, obj, nome: e.nome, x, y, hp: Math.round(e.hp * VIDA_INIMIGO * (ia.jeito === 'chefe' || ia.jeito === 'servo' ? 0.75 : 1)), atk: e.atk, estado: 'chega', t: 900 + Math.random() * 600, stun: 0, fase: Math.random() * 6, padrao: 0 };
     f.max = f.hp;

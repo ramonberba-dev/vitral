@@ -45,13 +45,21 @@ function texto(cena, x, y, t, tam = 18, cor = '#ffffff', extra = {}) {
 // a perna sobe e balança, o corpo sobe e desce e inclina para a frente.
 const CORTE = 105, PE = 123;                 // linha do quadril (abaixo das mãos) e da sola no quadro 96x128
 const LINHA_DIR = { baixo: 0, lado: 1, cima: 2 };
-function pecasBoneco(cena, k) {
-  if (cena.textures.exists(`bn-${k}-baixo-t`)) return;
+// cinza = Cópia cinzenta da Bruma: as mesmas peças sem cor, escuras e puxando para o roxo
+function pecasBoneco(cena, k, cinza = false) {
+  const pref = cinza ? 'bc' : 'bn';
+  if (cena.textures.exists(`${pref}-${k}-baixo-t`)) return;
   const src = cena.textures.get('anda-' + k).getSourceImage();
   Object.entries(LINHA_DIR).forEach(([dir, r]) => {
     const recorta = (nome, x, y, w, h) => {
-      const c = cena.textures.createCanvas(`bn-${k}-${dir}-${nome}`, w, h);
-      c.context.drawImage(src, x, r * 128 + y, w, h, 0, 0, w, h); c.refresh();
+      const c = cena.textures.createCanvas(`${pref}-${k}-${dir}-${nome}`, w, h);
+      c.context.drawImage(src, x, r * 128 + y, w, h, 0, 0, w, h);
+      if (cinza) {
+        const d = c.context.getImageData(0, 0, w, h), px = d.data;
+        for (let i = 0; i < px.length; i += 4) { const l = (px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11) * 0.62 + 18; px[i] = l * 0.92; px[i + 1] = l * 0.9; px[i + 2] = l * 1.08 + 6; }
+        c.context.putImageData(d, 0, 0);
+      }
+      c.refresh();
     };
     recorta('t', 0, 0, 96, CORTE);
     recorta('e', 0, CORTE - 3, 48, 128 - CORTE + 3);
@@ -59,13 +67,13 @@ function pecasBoneco(cena, k) {
   });
 }
 class Boneco extends Phaser.GameObjects.Container {
-  constructor(cena, k, x, y, esc = 1) {
-    super(cena, x, y); pecasBoneco(cena, k);
-    this.k = k; this.esc = esc; this.dir = 'baixo'; this.virado = false; this.fase = 0; this.respira = Math.random() * 3000; this.passo = null;
+  constructor(cena, k, x, y, esc = 1, cinza = false) {
+    super(cena, x, y); pecasBoneco(cena, k, cinza);
+    this.k = k; this.pref = cinza ? 'bc' : 'bn'; this.esc = esc; this.dir = 'baixo'; this.virado = false; this.fase = 0; this.respira = Math.random() * 3000; this.passo = null;
     const yp = CORTE - 3 - PE;
-    this.pE = cena.add.image(0, yp, `bn-${k}-baixo-e`).setOrigin(1, 0);
-    this.pD = cena.add.image(0, yp, `bn-${k}-baixo-d`).setOrigin(0, 0);
-    this.tronco = cena.add.image(0, CORTE - PE, `bn-${k}-baixo-t`).setOrigin(0.5, 1);
+    this.pE = cena.add.image(0, yp, `${this.pref}-${k}-baixo-e`).setOrigin(1, 0);
+    this.pD = cena.add.image(0, yp, `${this.pref}-${k}-baixo-d`).setOrigin(0, 0);
+    this.tronco = cena.add.image(0, CORTE - PE, `${this.pref}-${k}-baixo-t`).setOrigin(0.5, 1);
     this.add([this.pE, this.pD, this.tronco]); this.tamanho(esc); cena.add.existing(this);
   }
   get flipX() { return this.virado; }
@@ -81,7 +89,7 @@ class Boneco extends Phaser.GameObjects.Container {
     let dir = this.dir, vir = this.virado;
     if (Math.abs(dx) > 0.01 && Math.abs(dx) > Math.abs(dy) * 0.8) { dir = 'lado'; vir = dx > 0; }
     else if (Math.abs(dy) > 0.01) { dir = dy < 0 ? 'cima' : 'baixo'; vir = false; }
-    if (dir !== this.dir) { this.dir = dir; ['e', 'd', 't'].forEach((n, i) => this.pecas[i].setTexture(`bn-${this.k}-${dir}-${n}`)); }
+    if (dir !== this.dir) { this.dir = dir; ['e', 'd', 't'].forEach((n, i) => this.pecas[i].setTexture(`${this.pref}-${this.k}-${dir}-${n}`)); }
     if (vir !== this.virado) { this.virado = vir; this.tamanho(this.esc); }
     return this;
   }

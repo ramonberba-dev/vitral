@@ -117,7 +117,7 @@ class Explorar extends Phaser.Scene {
       if (n.t === 'batalha') n.inimigos.forEach((k, j) => {
         let s;
         if (k === 'larva') s = this.add.image(0, 0, 'larva').setScale(0.24).setOrigin(0.5, 1);
-        else { s = new Boneco(this, sorteia(ANDA), 0, 0, ESC_BONECO * 0.95).pintar(0x6f6c80).olhar(1, 0); s.vel = 0.8; this.patrulha.push(s); }
+        else { s = new Boneco(this, sorteia(ANDA), 0, 0, ESC_BONECO * 0.95, true).olhar(1, 0); s.vel = 0.8; this.patrulha.push(s); }
         s.x = (j - (n.inimigos.length - 1) / 2) * 50; c.add(s);
         this.tweens.add({ targets: s, x: s.x + 36, yoyo: true, repeat: -1, duration: Phaser.Math.Between(1600, 2400), ease: 'Sine.inOut', onYoyo: () => s.olhar && s.olhar(-1, 0), onRepeat: () => s.olhar && s.olhar(1, 0) });
       });
